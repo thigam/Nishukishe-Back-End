@@ -1,0 +1,48 @@
+{
+  "collected_at": "2024-05-12T08:10:00Z",
+  "account": {
+    "external_id": "44196397",
+    "display_name": "Nishukishe",
+    "username": "NishukisheKE",
+    "profile_url": "https://x.com/NishukisheKE",
+    "avatar_url": "https://example.com/avatar-x.png",
+    "followers": 9820
+  },
+  "metrics": {
+    "followers": 9820,
+    "post_count": 9,
+    "likes": 468,
+    "replies": 132,
+    "reposts": 88,
+    "quotes": 26,
+    "impressions": 21400
+  },
+  "posts": [
+    {
+      "external_id": "x_post_1",
+      "permalink": "https://x.com/NishukisheKE/status/1",
+      "message": "Morning traffic tips for the CBD commuters.",
+      "published_at": "2024-05-11T05:30:00Z",
+      "metrics": {
+        "likes": 160,
+        "replies": 42,
+        "reposts": 24,
+        "quotes": 6,
+        "impressions": 5600
+      }
+    },
+    {
+      "external_id": "x_post_2",
+      "permalink": "https://x.com/NishukisheKE/status/2",
+      "message": "Shout out to our route partners in Kisumu!",
+      "published_at": "2024-05-10T14:12:00Z",
+      "metrics": {
+        "likes": 118,
+        "replies": 28,
+        "reposts": 19,
+        "quotes": 4,
+        "impressions": 4300
+      }
+    }
+  ]
+}

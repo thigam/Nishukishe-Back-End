@@ -1,0 +1,42 @@
+{
+  "collected_at": "2024-05-12T08:20:00Z",
+  "account": {
+    "external_id": "UC1234567890",
+    "display_name": "Nishukishe Channel",
+    "username": "@Nishukishe",
+    "profile_url": "https://youtube.com/@Nishukishe",
+    "avatar_url": "https://example.com/avatar-yt.png",
+    "followers": 5410
+  },
+  "metrics": {
+    "followers": 5410,
+    "post_count": 4,
+    "likes": 890,
+    "comments": 164,
+    "views": 98210
+  },
+  "posts": [
+    {
+      "external_id": "yt_video_1",
+      "permalink": "https://youtube.com/watch?v=video1",
+      "message": "How Nishukishe optimises matatu routes",
+      "published_at": "2024-05-09T11:00:00Z",
+      "metrics": {
+        "likes": 320,
+        "comments": 58,
+        "views": 30210
+      }
+    },
+    {
+      "external_id": "yt_video_2",
+      "permalink": "https://youtube.com/watch?v=video2",
+      "message": "Customer spotlight: Nairobi commuters",
+      "published_at": "2024-05-06T17:30:00Z",
+      "metrics": {
+        "likes": 280,
+        "comments": 42,
+        "views": 25000
+      }
+    }
+  ]
+}

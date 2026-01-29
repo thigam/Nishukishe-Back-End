@@ -1,0 +1,48 @@
+{
+  "collected_at": "2024-05-12T08:25:00Z",
+  "account": {
+    "external_id": "1234567",
+    "display_name": "Nishukishe",
+    "username": "company/nishukishe",
+    "profile_url": "https://www.linkedin.com/company/nishukishe",
+    "avatar_url": "https://example.com/avatar-li.png",
+    "followers": 6820
+  },
+  "metrics": {
+    "followers": 6820,
+    "post_count": 3,
+    "likes": 214,
+    "comments": 72,
+    "shares": 18,
+    "clicks": 420,
+    "impressions": 18400
+  },
+  "posts": [
+    {
+      "external_id": "li_post_1",
+      "permalink": "https://www.linkedin.com/feed/update/urn:li:activity:1/",
+      "message": "Welcoming new corporate partners to Nishukishe.",
+      "published_at": "2024-05-10T10:00:00Z",
+      "metrics": {
+        "likes": 84,
+        "comments": 26,
+        "shares": 6,
+        "clicks": 140,
+        "impressions": 5100
+      }
+    },
+    {
+      "external_id": "li_post_2",
+      "permalink": "https://www.linkedin.com/feed/update/urn:li:activity:2/",
+      "message": "Hiring announcement: data analysts",
+      "published_at": "2024-05-07T12:30:00Z",
+      "metrics": {
+        "likes": 68,
+        "comments": 18,
+        "shares": 4,
+        "clicks": 120,
+        "impressions": 4300
+      }
+    }
+  ]
+}

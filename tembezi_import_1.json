@@ -1,0 +1,63 @@
+[
+    {
+        "operator_name": "Hikers Afrique",
+        "title": "Mt Kenya Expedition (Chogoria / Sirimon Route)",
+        "description": "4 Days | 3 Nights Expedition via Chogoria / Sirimon Route. Includes shared transport, guides, porters, park fees, meals, and accommodation.",
+        "destination": {
+            "name": "Mt. Kenya",
+            "lat": -0.1515,
+            "lng": 37.3084
+        },
+        "meeting_point": {
+            "name": "Nairobi CBD (Shared Transport)",
+            "lat": -1.2921,
+            "lng": 36.8219
+        },
+        "date": "2026-02-27 06:00:00",
+        "duration": "4 days",
+        "price": 48000,
+        "currency": "KES",
+        "whatsapp_number": "+254746588408",
+        "ig_account": "@hikersafrique",
+        "email_address": "info@hikersafrique.com",
+        "checkout_type": "external",
+        "categories": [
+            "Hiking",
+            "Expedition",
+            "Mountain"
+        ],
+        "images": [
+            "https://drive.google.com/uc?export=download&id=1B38iL6zRwN8sOQapu9GqU5hyW0HVQ2CW"
+        ]
+    },
+    {
+        "operator_name": "Cushy Adventures",
+        "title": "Tigoni Tea & Waterfall Hike",
+        "description": "A scenic hike through Tigoni tea farms and waterfalls. Cost includes cozy round trip transport, entrance fee, guide fee, water, paramedic, and achievement badge.",
+        "destination": {
+            "name": "Tigoni",
+            "lat": -1.1167,
+            "lng": 36.6833
+        },
+        "meeting_point": {
+            "name": "Peacefield Building (Roaster), Thika Road",
+            "lat": -1.2335,
+            "lng": 36.8763
+        },
+        "date": "2026-01-10 07:00:00",
+        "duration": "1 day",
+        "price": 2500,
+        "currency": "KES",
+        "whatsapp_number": "0718174339",
+        "ig_account": "@cushyadventures_254",
+        "checkout_type": "external",
+        "categories": [
+            "Hiking",
+            "Nature",
+            "Day Trip"
+        ],
+        "images": [
+            "https://drive.google.com/uc?export=download&id=1HsrsAgFB1g1nd9H7gduGffC1S8TDUlBV"
+        ]
+    }
+]

@@ -1,0 +1,51 @@
+{
+  "collected_at": "2024-05-12T08:00:00Z",
+  "account": {
+    "external_id": "1234567890",
+    "display_name": "Nishukishe Facebook",
+    "username": "nishukishe",
+    "profile_url": "https://facebook.com/nishukishe",
+    "avatar_url": "https://example.com/avatar-fb.png",
+    "followers": 18452,
+    "metadata": {
+      "category": "Community"
+    }
+  },
+  "metrics": {
+    "followers": 18452,
+    "post_count": 5,
+    "likes": 732,
+    "comments": 184,
+    "shares": 92,
+    "views": 35210,
+    "reactions": 812
+  },
+  "posts": [
+    {
+      "external_id": "fb_post_1",
+      "permalink": "https://facebook.com/nishukishe/posts/1",
+      "message": "Latest campaign launch in Nairobi!",
+      "published_at": "2024-05-10T13:30:00Z",
+      "metrics": {
+        "likes": 210,
+        "comments": 64,
+        "shares": 31,
+        "views": 8300,
+        "reactions": 260
+      }
+    },
+    {
+      "external_id": "fb_post_2",
+      "permalink": "https://facebook.com/nishukishe/posts/2",
+      "message": "Behind the scenes with our drivers.",
+      "published_at": "2024-05-08T09:15:00Z",
+      "metrics": {
+        "likes": 165,
+        "comments": 38,
+        "shares": 18,
+        "views": 6200,
+        "reactions": 190
+      }
+    }
+  ]
+}

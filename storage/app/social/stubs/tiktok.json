@@ -1,0 +1,48 @@
+{
+  "collected_at": "2024-05-12T08:30:00Z",
+  "account": {
+    "external_id": "7000000000000000000",
+    "display_name": "Nishukishe",
+    "username": "nishukishe",
+    "profile_url": "https://www.tiktok.com/@nishukishe",
+    "avatar_url": "https://example.com/avatar-tt.png",
+    "followers": 15890
+  },
+  "metrics": {
+    "followers": 15890,
+    "post_count": 4,
+    "likes": 2040,
+    "comments": 190,
+    "shares": 142,
+    "views": 124500,
+    "saves": 260
+  },
+  "posts": [
+    {
+      "external_id": "tt_video_1",
+      "permalink": "https://www.tiktok.com/@nishukishe/video/1",
+      "message": "Route planning in 15 seconds",
+      "published_at": "2024-05-11T16:20:00Z",
+      "metrics": {
+        "likes": 620,
+        "comments": 52,
+        "shares": 34,
+        "views": 40100,
+        "saves": 70
+      }
+    },
+    {
+      "external_id": "tt_video_2",
+      "permalink": "https://www.tiktok.com/@nishukishe/video/2",
+      "message": "Meet the Nishukishe dispatch team",
+      "published_at": "2024-05-09T18:00:00Z",
+      "metrics": {
+        "likes": 540,
+        "comments": 44,
+        "shares": 28,
+        "views": 33600,
+        "saves": 60
+      }
+    }
+  ]
+}

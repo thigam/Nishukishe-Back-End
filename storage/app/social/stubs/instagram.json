@@ -1,0 +1,45 @@
+{
+  "collected_at": "2024-05-12T08:05:00Z",
+  "account": {
+    "external_id": "17841400000000000",
+    "display_name": "Nishukishe Instagram",
+    "username": "nishukishe",
+    "profile_url": "https://instagram.com/nishukishe",
+    "avatar_url": "https://example.com/avatar-ig.png",
+    "followers": 24120
+  },
+  "metrics": {
+    "followers": 24120,
+    "post_count": 6,
+    "likes": 1290,
+    "comments": 212,
+    "views": 48200,
+    "saves": 168
+  },
+  "posts": [
+    {
+      "external_id": "ig_post_1",
+      "permalink": "https://instagram.com/p/ABC123/",
+      "message": "Sunrise commute stories!",
+      "published_at": "2024-05-11T06:45:00Z",
+      "metrics": {
+        "likes": 402,
+        "comments": 58,
+        "views": 11200,
+        "saves": 40
+      }
+    },
+    {
+      "external_id": "ig_post_2",
+      "permalink": "https://instagram.com/p/XYZ456/",
+      "message": "Weekend travel inspo.",
+      "published_at": "2024-05-09T15:10:00Z",
+      "metrics": {
+        "likes": 356,
+        "comments": 46,
+        "views": 9800,
+        "saves": 32
+      }
+    }
+  ]
+}
