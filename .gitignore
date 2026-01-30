@@ -25,11 +25,8 @@ Homestead.json
 /.vagrant
 .phpunit.result.cache
 .env
-composer.json
-composer.lock
 
 
 #h3 specific
- app/Services/H3Wrapper.php
 storage/certificates/jenga_private.pem
 storage/certificates/jenga_public.pem

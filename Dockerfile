@@ -11,9 +11,10 @@ RUN apt-get update && apt-get install -y \
     unzip \
     cmake \
     build-essential \
-    libffi-dev
+    libffi-dev \
+    libzip-dev
 # Install PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd ffi
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd ffi zip
 # Enable Apache mod_rewrite for Laravel
 RUN a2enmod rewrite
 # Configure Apache DocumentRoot to point to public/
