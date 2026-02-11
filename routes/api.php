@@ -58,9 +58,13 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth
         });
     });
 });
-Route::post('receive-email/mailgun', [MailController::class, 'receiveEmail'])
+Route::post('receive-email/mailgun', [\App\Http\Controllers\Webhook\MailgunController::class, 'receive'])
     ->name('receive.email')
     ->middleware([CorsMiddleware::class, LogUserActivity::class]);
+
+Route::post('webhooks/resend/incoming', [\App\Http\Controllers\Webhook\ResendWebhookController::class, 'receive']); // Resend Webhook
+// Route::post('webhooks/mailgun/incoming', [\App\Http\Controllers\Webhook\MailgunController::class, 'receive']); // Deprecated
+
 
 Route::get('sacco-manager/sacco-id', [SaccoManagerController::class, 'getSaccoId'])
     ->middleware([CorsMiddleware::class, LogUserActivity::class]);
@@ -324,9 +328,18 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
     Route::post('superadmin/scalping/approve', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'approve'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
 
+
     Route::get('admin/service-map', [\App\Http\Controllers\ServiceMapController::class, 'index']);
 
+    // Email System
+    Route::middleware([\App\Http\Middleware\EnsureNishukisheEmail::class])->group(function () {
+        Route::get('emails', [\App\Http\Controllers\EmailController::class, 'index']);
+        Route::get('emails/{email}', [\App\Http\Controllers\EmailController::class, 'show']);
+        Route::post('emails/send', [\App\Http\Controllers\EmailController::class, 'store']);
+        Route::apiResource('email-templates', \App\Http\Controllers\EmailTemplateController::class);
+    });
 });
+
 
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);

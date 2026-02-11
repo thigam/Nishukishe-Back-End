@@ -26,7 +26,7 @@ class DebugSearch extends Command
     {
         $this->info("Starting Debug Search: Westlands -> Kitengela");
 
-        $scenario = $this->ask('Select scenario: [1] Nairobi->Kajiado, [2] Mombasa->Mtwapa, [3] Custom', '1');
+        $scenario = $this->ask('Select scenario: [1] Nairobi->Kajiado, [2] Mombasa->Mtwapa, [3] Test Filter (Mombasa->Nairobi), [4] Custom', '1');
 
         if ($scenario == '1') {
             // Nairobi -> Kajiado
@@ -40,6 +40,12 @@ class DebugSearch extends Command
             $olng = 39.6682; // Mombasa
             $dlat = -3.9423;
             $dlng = 39.7456; // Mtwapa
+        } elseif ($scenario == '3') {
+            // Mombasa -> Nairobi
+            $olat = -4.0435;
+            $olng = 39.6682; // Mombasa
+            $dlat = -1.2833;
+            $dlng = 36.8167; // Nairobi
         } else {
             $olat = (float) $this->ask('Origin Lat', -1.268);
             $olng = (float) $this->ask('Origin Lng', 36.808);
@@ -98,9 +104,54 @@ class DebugSearch extends Command
                 $this->warn(" - Failed to expand path.");
             } else {
                 $this->info(" - Expansion Successful. Legs: " . count($detailed));
+                $totalDuration = 0;
                 foreach ($detailed as $leg) {
-                    $this->line("   > " . $leg['from_station'] . " -> " . $leg['to_station'] . " via " . $leg['route_id'] . " (Walk Valid: " . ($leg['walk_valid'] ? 'Yes' : 'NO') . ")");
+                    $routeId = $leg['route_id'];
+                    // Look up Sacco
+                    $route = DB::table('sacco_routes')->where('route_id', $routeId)->first();
+                    $saccoName = 'Unknown';
+                    $saccoId = 'Unknown';
+                    if ($route) {
+                        $sacco = DB::table('saccos')->where('id', $route->sacco_id)->first();
+                        $saccoName = $sacco->name ?? 'N/A';
+                        $saccoId = $route->sacco_id;
+                    }
+
+                    // Calc Duration from Trip
+                    // We need to find a trip for this route to get times.
+                    // This is a rough debug estimate.
+                    $trip = DB::table('trips')
+                        ->where('route_id', $routeId)
+                        ->first();
+
+                    $durationInfo = "N/A";
+                    $durationVal = 0;
+                    if ($trip) {
+                        $st1 = DB::table('stop_times')
+                            ->where('trip_id', $trip->trip_id)
+                            ->where('stop_id', $leg['from_stop_id'])
+                            ->first();
+                        $st2 = DB::table('stop_times')
+                            ->where('trip_id', $trip->trip_id)
+                            ->where('stop_id', $leg['to_stop_id'])
+                            ->first();
+
+                        if ($st1 && $st2) {
+                            $t1 = strtotime($st1->departure_time);
+                            $t2 = strtotime($st2->arrival_time);
+                            if ($t2 < $t1)
+                                $t2 += 24 * 3600; // Next day
+                            $diff = ($t2 - $t1) / 60;
+                            $durationVal = $diff;
+                            $durationInfo = round($diff, 1) . " min (" . round($diff / 60, 1) . "h)";
+                        }
+                    }
+
+                    $this->line("   > " . $leg['from_station'] . " -> " . $leg['to_station']);
+                    $this->line("     Route: $routeId ($saccoName, ID: $saccoId)");
+                    $this->line("     Duration: " . round($durationVal, 1) . " min");
                 }
+                $this->info("   Total Duration: " . round($totalDuration, 1) . " min (" . round($totalDuration / 60, 1) . " hours)");
             }
         }
     }

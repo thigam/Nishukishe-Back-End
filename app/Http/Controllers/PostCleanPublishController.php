@@ -212,71 +212,14 @@ class PostCleanPublishController extends Controller
             }
         }
 
-        //run php artisan directions:populate
-        //php artisan directions:backfill-h3
-        // run artisan commands programmatically
-        // Artisan::call('directions:populate');
-        // Artisan::call('directions:backfill-h3');
-        $logFile = storage_path('logs/artisan_seq_background.log');
-        $basePath = base_path('artisan');
-        $lockFile = storage_path('logs/artisan_exec.lock');
-        $cooldown = 10;
+        // Dispatch job in background using Laravel Queue
+        // This avoids timeout issues by offloading the heavy artisan commands
+        \App\Jobs\RunPostCleanPublishCommands::dispatch();
 
-        // --- check if lock exists and is fresh ---
-        if (file_exists($lockFile)) {
-            $lastRun = (int) file_get_contents($lockFile);
-
-            // If last run was within cooldown, skip
-            if (time() - $lastRun < $cooldown) {
-                \Log::warning("Skipped artisan exec: another run triggered within {$cooldown}s");
-                return response()->json([
-                    'status' => 'skipped',
-                    'message' => "Another job already dispatched within last {$cooldown} seconds"
-                ]);
-            }
-        }
-
-        // --- update lock timestamp ---
-        file_put_contents($lockFile, time());
-
-
-        $osrmHost = config('services.osrm.host');
-        if (!is_string($osrmHost) || $osrmHost === '') {
-            $osrmHost = env('OSRM_HOST', 'http://localhost:5000');
-        }
-        $osrmHost = rtrim($osrmHost, '/');
-        $osrmHostArg = escapeshellarg($osrmHost);
-
-        // Build one long command that runs sequentially in the background
-        $commands = [
-            "php {$basePath} directions:populate >> {$logFile} 2>&1",
-            "php {$basePath} directions:backfill-h3 >> {$logFile} 2>&1",
-            "php {$basePath} routes:backfill-route-stop >> {$logFile} 2>&1",
-            "php {$basePath} routes:seed-flag >> {$logFile} 2>&1",
-            // "php {$basePath} transfers:build --host={$osrmHostArg} --cap=600 >> {$logFile} 2>&1",
-            "php {$basePath} corridor:build >> {$logFile} 2>&1",
-        ];
-
-        $command = '(' . implode(' && ', $commands) . ') &';
-
-        // Dispatch in background
-        exec($command);
-
-        \Log::info("Background sequential artisan jobs dispatched", [
-            'log_file' => $logFile,
-            'commands' => [
-                'directions:populate',
-                'directions:backfill-h3',
-                'routes:backfill-route-stop',
-                'routes:seed-flag',
-                // sprintf('transfers:build --host=%s --cap=600', $osrmHost),
-                'corridor:build',
-            ]
-        ]);
-
+        \Log::info("Background sequential artisan jobs dispatched via Queue");
 
         // log after execution
-        Log::info('Finished running directions commands', [
+        Log::info('Finished running directions commands (queued)', [
             'time' => now()->toDateTimeString(),
         ]);
 

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Trip extends Model
 {
+    protected $primaryKey = 'trip_id';
+
     protected $casts = [
         'stop_times' => 'array',
         'day_of_week' => 'array',

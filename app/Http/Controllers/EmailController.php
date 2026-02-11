@@ -1,0 +1,142 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Email;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+
+
+
+class EmailController extends Controller
+{
+    /**
+     * List emails.
+     * Service persons see their own.
+     * Super admins can toggle to see all.
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+        $query = Email::query()->latest();
+
+        if ($user->role !== 'super_admin' || $request->query('view_all') !== 'true') {
+            $query->where(function ($q) use ($user) {
+                $q->where('recipient_email', $user->email)
+                    ->orWhere('sender_email', $user->email);
+            });
+        }
+
+        // Search
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('subject', 'like', "%{$search}%")
+                    ->orWhere('sender_email', 'like', "%{$search}%")
+                    ->orWhere('recipient_email', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by type (incoming/outgoing)
+        if ($type = $request->query('type')) {
+            $query->where('type', $type);
+        }
+
+        return $query->paginate(20);
+    }
+
+    /**
+     * Show a single email.
+     */
+    public function show(Request $request, Email $email)
+    {
+        $user = $request->user();
+
+        // access control
+        if ($user->role !== 'super_admin') {
+            if ($email->recipient_email !== $user->email && $email->sender_email !== $user->email) {
+                abort(403);
+            }
+        }
+
+        if (!$email->read_at && $email->recipient_email === $user->email) {
+            $email->update(['read_at' => now()]);
+        }
+
+        return $email;
+    }
+
+    /**
+     * Send an email (individual or bulk).
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'subject' => 'required|string',
+            'body_html' => 'required|string',
+            // 'recipients' can be array of emails OR a group selector string
+            'recipients' => 'required',
+        ]);
+
+        $user = $request->user();
+        $recipients = $request->recipients;
+
+        // Handle "Smart Groups"
+        if (is_string($recipients)) {
+            // E.g., 'group:sacco_manager'
+            if (Str::startsWith($recipients, 'group:')) {
+                $role = Str::after($recipients, 'group:');
+                // For safety, only super admin might be allowed to email entire groups? 
+                // Or maybe service persons can email specific sub-groups.
+                // For now, implementing basic logic:
+                $recipients = User::where('role', $role)->pluck('email')->toArray();
+            } else {
+                // assume comma separated string
+                $recipients = array_map('trim', explode(',', $recipients));
+            }
+        }
+
+        if (!is_array($recipients)) {
+            $recipients = [$recipients];
+        }
+
+        $count = 0;
+        foreach ($recipients as $recipientEmail) {
+            // 1. Send via Resend
+                // Manual instantiation (Proven to work)
+                $apiKey = \Resend\ValueObjects\ApiKey::from(env('RESEND_KEY'));
+                $baseUri = \Resend\ValueObjects\Transporter\BaseUri::from('api.resend.com');
+                $headers = \Resend\ValueObjects\Transporter\Headers::withAuthorization($apiKey);
+                $client = new \GuzzleHttp\Client();
+                $transporter = new \Resend\Transporters\HttpTransporter($client, $baseUri, $headers);
+                $resend = new \Resend\Client($transporter);
+
+                $resend->emails->send([
+                    'from' => $user->name . ' <' . $user->email . '>',
+                    'to' => [$recipientEmail],
+                    'subject' => $request->subject,
+                    'html' => $request->body_html,
+                ]);
+            } catch (\Exception $e) {
+                // Log and Rethrow so the frontend sees the error
+                \Log::error("Resend API Error: " . $e->getMessage());
+                return response()->json(['message' => 'Failed to send email: ' . $e->getMessage()], 500);
+            }
+
+            // 2. Store in DB as outgoing
+            Email::create([
+                'uuid' => Str::uuid(),
+                'sender_email' => $user->email, // The user sending it
+                'recipient_email' => $recipientEmail,
+                'subject' => $request->subject,
+                'body_html' => $request->body_html,
+                'type' => 'outgoing',
+                'user_id' => $user->id,
+            ]);
+            $count++;
+        }
+
+        return response()->json(['message' => "Sent {$count} emails successfully."]);
+    }
+}

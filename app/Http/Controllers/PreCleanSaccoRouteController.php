@@ -60,6 +60,7 @@ class PreCleanSaccoRouteController extends Controller
         $data = $request->validate([
             'sacco_id' => 'required|string',
             'route_id' => 'required|string',   // base id (e.g., 10200010811)
+            'sacco_route_id' => 'nullable|string', // Allow explicit update of existing
             'route_number' => 'nullable|string',
             'route_start_stop' => 'required|string',
             'route_end_stop' => 'required|string',
@@ -74,10 +75,31 @@ class PreCleanSaccoRouteController extends Controller
             'mode' => 'nullable',
             'waiting_time' => 'nullable',
             'direction_index' => 'nullable|integer',
+            'status' => 'nullable|string',
         ]);
 
-        // Compute direction + composite sacco_route_id up front
-        [$dir, $saccoRouteId] = $this->nextSaccoRouteKey($data['sacco_id'], $data['route_id']);
+        $saccoRouteId = $data['sacco_route_id'] ?? null;
+        $dir = $data['direction_index'] ?? null;
+
+        // Upsert Logic: If ID provided, try to find existing
+        if ($saccoRouteId) {
+            $existing = PreCleanSaccoRoute::where('sacco_route_id', $saccoRouteId)->first();
+            if ($existing) {
+                // If existing found, update it
+                if (array_key_exists('currency', $data)) {
+                    $data['currency'] = strtoupper($data['currency']);
+                }
+                $existing->update($data);
+                return response()->json($existing, 200);
+            }
+        }
+
+        // If not found or not provided, generate new key
+        if (!$saccoRouteId) {
+            // Compute direction + composite sacco_route_id up front
+            [$dir, $saccoRouteId] = $this->nextSaccoRouteKey($data['sacco_id'], $data['route_id']);
+        }
+
         $data['direction_index'] = $data['direction_index'] ?? $dir;
         $data['sacco_route_id'] = $saccoRouteId;
         $data['status'] = $data['status'] ?? 'pending';
@@ -300,42 +322,46 @@ class PreCleanSaccoRouteController extends Controller
 
             // Record each pre→final stop decision
             $replacementMap = [];
+            $replacementMapByStopId = [];
             foreach ($payload['stop_replacements'] ?? [] as $replacement) {
                 if (!isset($replacement['pre_id'])) {
                     continue;
                 }
 
                 $replacementMap[(string) $replacement['pre_id']] = $replacement;
+                if (isset($replacement['stop_id'])) {
+                    $replacementMapByStopId[(string) $replacement['stop_id']] = $replacement;
+                }
             }
 
             $finalStopRefs = is_array($pre->stop_ids) ? array_values($pre->stop_ids) : [];
-            $originalStopIds = array_values($originalStopIds);
+            // $originalStopIds = array_values($originalStopIds); // No longer needed for index-based lookup
             $stopIdLookup = [];
             $finalStopIds = [];
 
             foreach ($finalStopRefs as $index => $finalStopRef) {
-                $sourcePreId = $originalStopIds[$index] ?? null;
+                // $sourcePreId = $originalStopIds[$index] ?? null; // Removing this logic as it breaks on reorder
                 $replacement = null;
 
-                if ($sourcePreId !== null && isset($replacementMap[(string) $sourcePreId])) {
-                    $replacement = $replacementMap[(string) $sourcePreId];
-                } elseif (isset($replacementMap[(string) $finalStopRef])) {
-                    $replacement = $replacementMap[(string) $finalStopRef];
+                // Try to find replacement by the ID provided (which might be the pre_id or the new stop_id)
+                if ($finalStopRef !== null) {
+                    $key = (string) $finalStopRef;
+                    if (isset($replacementMap[$key])) {
+                        $replacement = $replacementMap[$key];
+                    } elseif (isset($replacementMapByStopId[$key])) {
+                        $replacement = $replacementMapByStopId[$key];
+                    }
                 }
 
-                $preCleanId = $replacement['pre_id'] ?? $sourcePreId;
+                $preCleanId = $replacement['pre_id'] ?? $finalStopRef; // Default to the ref itself if known
 
                 $stopName = $replacement['stop_name'] ?? null;
                 $stopLat = $replacement['stop_lat'] ?? null;
                 $stopLong = $replacement['stop_long'] ?? null;
 
                 if ($stopLat === null || $stopLong === null) {
-                    $lookupId = $sourcePreId ?? $finalStopRef;
+                    $lookupId = $finalStopRef; // Simply use the ID we have
                     $stop = $lookupId !== null ? PreCleanStop::find($lookupId) : null;
-
-                    if (!$stop && $lookupId !== $finalStopRef && $finalStopRef !== null) {
-                        $stop = PreCleanStop::find($finalStopRef);
-                    }
 
                     if ($stop) {
                         $stopName = $stopName ?? $stop->stop_name;
@@ -370,7 +396,7 @@ class PreCleanSaccoRouteController extends Controller
 
                 foreach ([
                     $preCleanId,
-                    $sourcePreId,
+                    // $sourcePreId, // Removed
                     $finalStopRef,
                     $replacement['stop_id'] ?? null,
                     $generatedId,

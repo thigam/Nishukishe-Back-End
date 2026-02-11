@@ -98,7 +98,7 @@ class GenerateDirectionsCommand extends Command
             if ($this->option('test')) {
                 $this->line("[Test] Would import: {$guide['originSlug']} -> {$guide['destinationSlug']} (Mapped to: {$oStop->stop_name} -> {$dStop->stop_name})");
             } else {
-                \App\Models\DirectionThread::updateOrCreate(
+                $thread = \App\Models\DirectionThread::updateOrCreate(
                     [
                         'origin_slug' => $guide['originSlug'],
                         'destination_slug' => $guide['destinationSlug'],
@@ -108,7 +108,12 @@ class GenerateDirectionsCommand extends Command
                         'destination_stop_id' => $dStop->stop_id
                     ]
                 );
-                $this->line("Imported: {$guide['originSlug']} -> {$guide['destinationSlug']}");
+
+                if ($thread->wasRecentlyCreated) {
+                    $this->info("Created: {$guide['originSlug']} -> {$guide['destinationSlug']}");
+                } else {
+                    $this->line("Updated: {$guide['originSlug']} -> {$guide['destinationSlug']}");
+                }
             }
             $count++;
         }

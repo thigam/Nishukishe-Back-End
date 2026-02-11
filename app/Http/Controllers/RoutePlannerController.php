@@ -261,7 +261,16 @@ class RoutePlannerController extends Controller
         $enriched = array_map(fn($e) => $this->collapseCbdHops($e, 750), $enriched);
         $enriched = array_map(fn($e) => $this->collapseUrbanRun($e, 1100), $enriched);
 
+        $enriched = array_map(fn($e) => $this->collapseUrbanRun($e, 1100), $enriched);
+
+        // NEW: Filter out redundant "Same Sacco" transfers (e.g. Bus A -> Bus A)
+        $enriched = $this->filterRedundantTransfers($enriched);
+
         $unique = $this->dedupeMultiLeg($enriched);
+
+        // NEW: Filter outliers (paths that are way too long compared to the best one)
+        $unique = $this->filterOutliers($unique);
+
         // Only slice to top 12 AFTER dedupe, not before
         $unique = array_slice($unique, 0, self::MAX_CANDIDATES);
         // Add access + egress walking legs
@@ -326,11 +335,22 @@ class RoutePlannerController extends Controller
         $finalResults = array_merge($enrichedTop, $remainingCandidates);
 
         // --- NEW: Diversify Results ---
+        \Log::info("DEBUG: Calling diversifyResults now...");
         $preferredSaccos = $request->input('preferred_saccos', []);
         $finalResults = $this->diversifyResults($finalResults, $preferredSaccos);
+        \Log::info("DEBUG: Returned from diversifyResults");
 
         // --- NEW: Re-rank after diversification ---
         usort($finalResults, function ($a, $b) {
+            // Priority 1: Preferred Sacco
+            $prefA = $a['is_preferred'] ?? false;
+            $prefB = $b['is_preferred'] ?? false;
+            if ($prefA && !$prefB)
+                return -1;
+            if (!$prefA && $prefB)
+                return 1;
+
+            // Priority 2: Cost
             $costA = $this->totalCostFromEnriched($a);
             $costB = $this->totalCostFromEnriched($b);
             return $costA <=> $costB;
@@ -1081,9 +1101,144 @@ class RoutePlannerController extends Controller
         return array_values(array_map(fn($x) => $x['path'], $bestByCombo));
     }
 
+    private function filterRedundantTransfers(array $enrichedPaths): array
+    {
+        $filtered = [];
+        foreach ($enrichedPaths as $path) {
+            $legs = $path['legs'] ?? [];
+            $redundant = false;
+            $prevSaccoRouteId = null;
+
+            foreach ($legs as $leg) {
+                $mode = $leg['mode'] ?? '';
+                if ($mode === 'bus') {
+                    $saccoRouteId = $leg['sacco_route_id'] ?? null;
+                    if ($saccoRouteId && $prevSaccoRouteId && $saccoRouteId === $prevSaccoRouteId) {
+                        $redundant = true;
+                        break;
+                    }
+                    $prevSaccoRouteId = $saccoRouteId;
+                }
+                // Note: We do NOT reset prevSaccoRouteId on walks.
+                // Walking between two stops and boarding the SAME bus is also redundant
+                // (unless it's a loop, but usually staying on board is better).
+            }
+
+            if (!$redundant) {
+                $filtered[] = $path;
+            }
+        }
+        return $filtered;
+    }
+
+
+
+    private function filterOutliers(array $results): array
+    {
+        if (empty($results)) {
+            return [];
+        }
+
+        // 1. Find best duration
+        $bestDuration = INF;
+        $durations = [];
+
+        foreach ($results as $i => $r) {
+            $d = $this->calculateTotalDuration($r);
+            $durations[$i] = $d;
+            if ($d < $bestDuration) {
+                $bestDuration = $d;
+            }
+        }
+
+        if ($bestDuration === INF) {
+            return $results;
+        }
+
+        // 2. Define Threshold: max(best * 4, best + 120 minutes)
+        $threshold = max($bestDuration * 4, $bestDuration + 120);
+
+        $filtered = [];
+        foreach ($results as $i => $r) {
+            if ($durations[$i] <= $threshold) {
+                $filtered[] = $r;
+            }
+        }
+        return $filtered;
+    }
+
+    private function calculateTotalDuration(array $path): float
+    {
+        if (isset($path['summary']['total_duration_minutes'])) {
+            return (float) $path['summary']['total_duration_minutes'];
+        }
+
+        $total = 0.0;
+        foreach ($path['legs'] ?? [] as $leg) {
+            $mode = $leg['mode'] ?? '';
+            if ($mode === 'bus') {
+                $total += (float) ($leg['duration_minutes'] ?? 0);
+            } elseif ($mode === 'walk') {
+                $total += (float) ($leg['minutes'] ?? 0);
+            }
+        }
+        return $total;
+    }
+
     private function diversifyResults(array $results, array $preferredSaccos = []): array
     {
         $preferredMap = array_fill_keys($preferredSaccos, true);
+        \Log::info("Diversify Params", ['preferred' => $preferredSaccos, 'count_in' => count($results)]);
+
+        // 1. Resolve real sacco_id for all routes involved
+        $saccoRouteIds = [];
+        foreach ($results as $res) {
+            foreach ($res['legs'] ?? [] as $leg) {
+                if (($leg['mode'] ?? '') === 'bus' && isset($leg['sacco_route_id'])) {
+                    $saccoRouteIds[] = $leg['sacco_route_id'];
+                }
+            }
+        }
+        $saccoRouteIds = array_unique($saccoRouteIds);
+        \Log::info("RAW Sacco Route IDs extracted", ['ids' => array_values($saccoRouteIds)]);
+
+        $saccoIdLookup = [];
+        if (!empty($saccoRouteIds)) {
+            try {
+                $rows = \Illuminate\Support\Facades\DB::table('sacco_routes')
+                    ->whereIn('sacco_route_id', $saccoRouteIds)
+                    ->select('sacco_route_id', 'sacco_id')
+                    ->get();
+                foreach ($rows as $r) {
+                    $saccoIdLookup[$r->sacco_route_id] = $r->sacco_id;
+                }
+            } catch (\Exception $e) {
+                \Log::error("Failed to lookup sacco IDs: " . $e->getMessage());
+            }
+        }
+
+        // Debug: what saccos did we find?
+        $foundSaccoIds = array_values(array_unique($saccoIdLookup));
+        \Log::info("Saccos Found in Results", ['ids' => $foundSaccoIds]);
+
+        // Flag preferred results
+        foreach ($results as &$result) {
+            $isPref = false;
+            foreach ($result['legs'] ?? [] as $leg) {
+                if (($leg['mode'] ?? '') === 'bus' && isset($leg['sacco_route_id'])) {
+                    $rid = $leg['sacco_route_id'];
+                    $sid = $saccoIdLookup[$rid] ?? explode('_', $rid)[0];
+                    if (isset($preferredMap[$sid])) {
+                        $isPref = true;
+                        \Log::info("Match Found!", ['rid' => $rid, 'sid' => $sid]);
+                        break;
+                    }
+                }
+            }
+            $result['is_preferred'] = $isPref;
+        }
+        unset($result); // Break reference
+
 
         // Track usage of SaccoRoutes per leg index: [legIndex => [saccoRouteId => count]]
         $usagePerLeg = [];
@@ -1103,16 +1258,10 @@ class RoutePlannerController extends Controller
                 $leg = $legs[$legIdx];
                 $saccoRouteId = $leg['sacco_route_id'];
                 $routeId = $leg['route_id'];
-                $saccoId = explode('_', $saccoRouteId)[0] ?? ''; // Assuming format SACCO_ROUTE_INDEX
+                // Use lookup or fallback to explode
+                $saccoId = $saccoIdLookup[$saccoRouteId] ?? explode('_', $saccoRouteId)[0];
 
                 // Check if this is a preferred sacco
-                // We check if the sacco_route_id starts with any of the preferred sacco IDs (if they are passed as IDs)
-                // Or if we can derive sacco_id from sacco_route_id. 
-                // Usually sacco_route_id is like "MO0004_...". The sacco_id is "MO0004".
-                // Let's try to match against the sacco_id in the leg if available, or parse it.
-                // The leg has 'sacco_name', but we likely passed IDs in preferred_saccos.
-                // Let's assume preferred_saccos contains sacco_ids (e.g. "MO0004").
-
                 $isPreferred = isset($preferredMap[$saccoId]);
 
                 // Usage count for this specific sacco_route_id at this leg index
