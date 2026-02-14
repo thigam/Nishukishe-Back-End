@@ -27,7 +27,7 @@ Homestead.json
 .env
 composer.json
 composer.lock
-
+*.swp
 
 #h3 specific
  app/Services/H3Wrapper.php

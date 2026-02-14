@@ -21,7 +21,10 @@ return [
 
     // allow requests from specific frontends
     'allowed_origins' => [
-	    'https://frontend.nishy.test',
+        env('FRONTEND_URL', 'http://localhost:3000'),
+        'https://staging.nishukishe.com',
+        'http://staging.nishukishe.com',
+        'https://frontend.nishy.test',
         'http://nishukishe.com',
         'https://nishukishe.com',
         'http://dev.nishukishe.com',
@@ -30,14 +33,14 @@ return [
         'https://localhost:3000',
         'https://backend.nishukishe.com',
         'https://front.moskwito.com',
-         'https://images.nishukishe.com',        
+        'https://images.nishukishe.com',
     ],
 
     // allow any headers
     'allowed_headers' => ['*'],
 
     // enable cookies for cross-site requests
- 
+
     'allowed_origins_patterns' => [],
 
     'exposed_headers' => [],

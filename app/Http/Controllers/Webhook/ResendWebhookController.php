@@ -24,56 +24,100 @@ class ResendWebhookController extends Controller
         }
 
         // 3. Extract Core Fields
-        // Resend sends 'from', 'to' (array), 'subject', 'html', 'text'
         $from = $data['from'] ?? null;
         $tos = $data['to'] ?? [];
         $subject = $data['subject'] ?? '(No Subject)';
         $htmlBody = $data['html'] ?? null;
         $textBody = $data['text'] ?? '';
+        $emailId = $data['email_id'] ?? $data['id'] ?? null;
 
         if (!$from || empty($tos)) {
             Log::warning("Resend Webhook: Missing 'from' or 'to'", $data);
-            return response()->json(['message' => 'Invalid payload'], 200); // 200 to stop retry
+            return response()->json(['message' => 'Invalid payload'], 200);
         }
 
-        // 4. Normalize 'to' (it should be an array)
+        // 4. FETCH CONTENT FALLBACK
+        /* 
+           Crucial Fix: Use 'emails->receiving->get()' for inbound emails
+        */
+        if (empty($htmlBody) && empty($textBody) && $emailId) {
+            try {
+                Log::info("Resend Webhook: Body missing, fetching from API for ID: $emailId");
+
+                // Manual instantiation
+                $apiKey = \Resend\ValueObjects\ApiKey::from(env('RESEND_KEY'));
+                $baseUri = \Resend\ValueObjects\Transporter\BaseUri::from('api.resend.com');
+                $headers = \Resend\ValueObjects\Transporter\Headers::withAuthorization($apiKey);
+                $client = new \GuzzleHttp\Client();
+                $transporter = new \Resend\Transporters\HttpTransporter($client, $baseUri, $headers);
+                $resend = new \Resend\Client($transporter);
+
+                // CORRECT METHOD: emails->receiving->get()
+                $email = $resend->emails->receiving->get($emailId);
+
+                $htmlBody = $email->html;
+                $textBody = $email->text;
+
+                // Also update headers if they were missing or bare in payload
+                // Inbound Email object has full headers usually
+                // But for now, let's just focus on body content.
+
+                Log::info("Resend Webhook: Fetched content", ['html_len' => strlen($htmlBody ?? ''), 'text_len' => strlen($textBody ?? '')]);
+
+            } catch (\Exception $e) {
+                Log::error("Resend Webhook: Failed to fetch email content: " . $e->getMessage());
+            }
+        }
+
+        // 5. Normalize 'to'
         if (!is_array($tos)) {
             $tos = [$tos];
         }
 
-        // 5. Extract Sender Email
-        // "Name <email@example.com>" -> "email@example.com"
+        // 6. Extract Sender Email
         $senderEmail = $this->extractEmail($from);
 
         foreach ($tos as $recipientString) {
             $recipientEmail = $this->extractEmail($recipientString);
 
-            // 6. Find User in DB (who owns this email address?)
-            // We look for a user whose email matches the recipient (Internal User)
-            // Or maybe the sender is a user? (Less likely for inbound, but possible)
+            // 7. Find User in DB
             $user = User::where('email', $recipientEmail)->first();
 
-            // 7. Store Email
+            // 8. Threading Logic
+            $headers = $data['headers'] ?? [];
+            $inReplyTo = $headers['In-Reply-To'] ?? $headers['in-reply-to'] ?? null;
+            $references = $headers['References'] ?? $headers['references'] ?? null;
+            $messageId = $headers['Message-ID'] ?? $headers['message-id'] ?? null;
+
+            $parentId = null;
+            if ($inReplyTo) {
+                $parent = Email::where('message_id', $inReplyTo)->first();
+                if ($parent) {
+                    $parentId = $parent->id;
+                }
+            }
+
+            // 9. Body Logic
+            $finalHtml = $htmlBody;
+            if (empty($finalHtml) && !empty($textBody)) {
+                $finalHtml = nl2br(e($textBody));
+            }
+
+            // 10. Store Email
             Email::create([
                 'uuid' => Str::uuid(),
                 'sender_email' => $senderEmail,
                 'recipient_email' => $recipientEmail,
                 'subject' => $subject,
-                // logic: prefer HTML, fallback to newline-to-br text
-                'body_html' => $htmlBody ?: nl2br(e($textBody)),
-                'message_id' => $data['headers']['Message-ID'] ?? null, // Case sensitive? headers usually lower in array
+                'body_html' => $finalHtml,
+                'message_id' => $messageId,
+                'in_reply_to_message_id' => $inReplyTo,
+                'references' => $references,
+                'parent_id' => $parentId,
                 'type' => 'incoming',
                 'user_id' => $user ? $user->id : null,
                 'read_at' => null,
             ]);
-        }
-
-        // Verify it's an inbound email event
-        // Resend console shows 'email.received', checks 'type' field
-        $type = $payload['type'] ?? '';
-        if ($type !== 'email.received' && $type !== 'inbound.email_received') {
-            // 'inbound.email_received' might be legacy, 'email.received' is current
-            // return response()->json(['message' => 'Ignored event type'], 200);
         }
 
         return response()->json(['message' => 'Processed'], 200);
