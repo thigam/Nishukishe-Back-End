@@ -21,16 +21,19 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd ffi zip
 # Enable Apache mod_rewrite for Laravel
 RUN a2enmod rewrite
 
+# ... (after ENV APACHE_DOCUMENT_ROOT ...)
+
 # Configure Apache DocumentRoot to point to public/
 ENV APACHE_DOCUMENT_ROOT /var/www/public
-
-# ... (after ENV APACHE_DOCUMENT_ROOT ...)
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
 # START OF FIX: Enable .htaccess so Laravel routes work (fixes 404 errors)
-RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+# This replaces ALL instances of AllowOverride None with AllowOverride All
+RUN sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
 # END OF FIX
 
+# ... (Rest of file: Install H3, cleanup, composer, etc.)
 # ... (rest of file)
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
