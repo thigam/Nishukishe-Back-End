@@ -49,7 +49,7 @@ RUN git clone --branch v4.1.0 --depth 1 https://github.com/uber/h3.git \
     && make \
     && make install \
     && ldconfig
-
+# ... (H3 installation part) ...
 # Clean up
 RUN rm -rf /tmp/h3
 
@@ -62,13 +62,13 @@ WORKDIR /var/www
 # Copy composer files first (for caching)
 COPY composer.json composer.lock /var/www/
 
-# Install dependencies (no scripts yet to avoid errors before code is present)
+# Install dependencies
 RUN composer install --no-interaction --optimize-autoloader --no-dev --no-scripts
 
-# Copy application files (The rest of your code)
+# Copy application files
 COPY . /var/www/
 
-# Run post-autoload-dump scripts (now that code is present)
+# Run post-autoload-dump scripts
 RUN composer dump-autoload --optimize
 
 # Set permissions for Apache
