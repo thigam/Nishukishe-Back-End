@@ -23,6 +23,15 @@ RUN a2enmod rewrite
 
 # Configure Apache DocumentRoot to point to public/
 ENV APACHE_DOCUMENT_ROOT /var/www/public
+
+# ... (after ENV APACHE_DOCUMENT_ROOT ...)
+RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
+
+# START OF FIX: Enable .htaccess so Laravel routes work (fixes 404 errors)
+RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
+# END OF FIX
+
+# ... (rest of file)
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
