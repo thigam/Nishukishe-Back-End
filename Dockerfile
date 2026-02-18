@@ -32,6 +32,8 @@ RUN sed -ri -e 's!/var/www!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 # This replaces ALL instances of AllowOverride None with AllowOverride All
 RUN sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
 # END OF FIX
+# CRITICAL FIX: Enable FFI for H3
+RUN echo "ffi.enable=true" > /usr/local/etc/php/conf.d/docker-php-ext-ffi.ini
 
 # ... (Rest of file: Install H3, cleanup, composer, etc.)
 # ... (rest of file)
