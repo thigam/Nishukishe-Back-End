@@ -1,7 +1,7 @@
-# Dockerfile
+# backend/Dockerfile
 FROM php:8.2-apache
 
-# Install system dependencies and build tools
+# 1. Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -15,34 +15,26 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libzip-dev
 
-# Install PHP extensions (Added zip!)
+# 2. Install PHP extensions (Including FFI and ZIP)
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd ffi zip
 
-# Enable Apache mod_rewrite for Laravel
+# 3. Apache Configuration
 RUN a2enmod rewrite
 
-# ... (after ENV APACHE_DOCUMENT_ROOT ...)
-
-# Configure Apache DocumentRoot to point to public/
+# Point DocumentRoot to public/
 ENV APACHE_DOCUMENT_ROOT /var/www/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 
-# START OF FIX: Enable .htaccess so Laravel routes work (fixes 404 errors)
-# This replaces ALL instances of AllowOverride None with AllowOverride All
+# Enable .htaccess overrides (Fixes 404s)
 RUN sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
-# END OF FIX
-# CRITICAL FIX: Enable FFI for H3
+
+# Enable FFI for H3 (Runtime Fix)
 RUN echo "ffi.enable=true" > /usr/local/etc/php/conf.d/docker-php-ext-ffi.ini
+RUN echo "extension=ffi.so" >> /usr/local/etc/php/conf.d/docker-php-ext-ffi.ini
 
-# ... (Rest of file: Install H3, cleanup, composer, etc.)
-# ... (rest of file)
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
-
-# Install H3 (Uber's Hexagonal Hierarchical Spatial Index)
+# 4. Install H3 Library (Uber's Hexagonal Hierarchical Spatial Index)
 WORKDIR /tmp
-# CRITICAL: Pinning to v4.1.0 to match your PHP FFI bindings
 RUN git clone --branch v4.1.0 --depth 1 https://github.com/uber/h3.git \
     && cd h3 \
     && mkdir build \
@@ -51,29 +43,21 @@ RUN git clone --branch v4.1.0 --depth 1 https://github.com/uber/h3.git \
     && make \
     && make install \
     && ldconfig
-# ... (H3 installation part) ...
-# Clean up
 RUN rm -rf /tmp/h3
 
-# Get latest Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Set working directory
+# 5. Install Composer & Dependencies
 WORKDIR /var/www
-
-# Copy composer files first (for caching)
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 COPY composer.json composer.lock /var/www/
 
-# Install dependencies
-RUN composer install --no-interaction --optimize-autoloader --no-dev --no-scripts
+# Install dependencies (ignoring platform reqs for FFI during build just in case)
+RUN composer install --no-interaction --optimize-autoloader --no-dev --no-scripts --ignore-platform-req=ext-ffi
 
-# Copy application files
+# 6. Copy Application Code
 COPY . /var/www/
 
-# Run post-autoload-dump scripts
+# Dump autoload and set permissions
 RUN composer dump-autoload --optimize
-
-# Set permissions for Apache
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
 EXPOSE 80
