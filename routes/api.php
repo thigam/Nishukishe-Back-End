@@ -334,6 +334,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
     // Email System
     Route::middleware([\App\Http\Middleware\EnsureNishukisheEmail::class])->group(function () {
         Route::get('emails', [\App\Http\Controllers\EmailController::class, 'index']);
+        Route::get('emails/{email}/thread', [\App\Http\Controllers\EmailController::class, 'thread']);
         Route::get('emails/{email}', [\App\Http\Controllers\EmailController::class, 'show']);
         Route::post('emails/send', [\App\Http\Controllers\EmailController::class, 'store']);
         Route::apiResource('email-templates', \App\Http\Controllers\EmailTemplateController::class);
@@ -343,3 +344,6 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
 
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);
+
+Route::get('/seo-links', [\App\Http\Controllers\SeoLinksController::class, 'index']);
+
