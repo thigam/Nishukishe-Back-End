@@ -66,7 +66,7 @@ class GenerateDirectionsCommand extends Command
 
     protected function handleImportJson()
     {
-        $jsonPath = base_path('../frontend/public/content/directions/routes.json');
+        $jsonPath = base_path('./routes.json');
         if (!file_exists($jsonPath)) {
             $this->error("routes.json not found at: {$jsonPath}");
             return;
