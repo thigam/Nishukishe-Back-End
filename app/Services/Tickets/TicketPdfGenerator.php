@@ -28,6 +28,7 @@ class TicketPdfGenerator
             'margin_right' => 12,
             'margin_top' => 20,
             'margin_bottom' => 20,
+            'tempDir' => storage_path('framework/cache/mpdf'),
         ]);
 
         $html = view('pdf.booking_tickets', [
@@ -59,7 +60,7 @@ class TicketPdfGenerator
             try {
                 $data = $writer->writeString((string) $ticket->qr_code);
             } catch (\Throwable $e) {
-                throw new RuntimeException('Failed to generate QR code for ticket '.$ticket->id, 0, $e);
+                throw new RuntimeException('Failed to generate QR code for ticket ' . $ticket->id, 0, $e);
             }
 
             return [
