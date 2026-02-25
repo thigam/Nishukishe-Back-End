@@ -19,7 +19,7 @@ class PaymentGatewayManager
 
     public function initiatePayment(Payment $payment, array $payload): array
     {
-        $defaultProvider = env('PAYMENT_DEFAULT_PROVIDER', 'jenga');
+        $defaultProvider = trim(env('PAYMENT_DEFAULT_PROVIDER', 'jenga'), '"\'\\');
         $method = Arr::get($payload, 'payment_method', $defaultProvider);
 
         if ($method === 'manual' && !config('services.bookings.allow_manual_checkout', true)) {

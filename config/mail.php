@@ -45,15 +45,15 @@ return [
 
         'mailers' => [
             'smtp' => [
-            'transport' => 'smtp',
-            'host' => env('MAIL_HOST', 'smtp.eu.mailgun.org'),
-            'port' => env('MAIL_PORT', 587),
-            'encryption' => env('MAIL_ENCRYPTION', 'tls'),
-            'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
-    ],
-    // other mailers...
-],
+                'transport' => 'smtp',
+                'host' => env('MAIL_HOST', 'smtp.eu.mailgun.org'),
+                'port' => env('MAIL_PORT', 587),
+                'encryption' => env('MAIL_ENCRYPTION', 'tls'),
+                'username' => env('MAIL_USERNAME'),
+                'password' => env('MAIL_PASSWORD'),
+            ],
+            // other mailers...
+        ],
 
         'ses' => [
             'transport' => 'ses',
@@ -115,8 +115,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'no-reply@moskwito.com'),
-        'name' => env('MAIL_FROM_NAME', 'Nishukishe'),
+        'address' => trim(env('MAIL_FROM_ADDRESS', 'no-reply@moskwito.com'), '"\'\\'),
+        'name' => trim(env('MAIL_FROM_NAME', 'Nishukishe'), '"\'\\'),
     ],
 
 ];

@@ -214,8 +214,8 @@ return [
             'to' => 'your@example.com',
 
             'from' => [
-                'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-                'name' => env('MAIL_FROM_NAME', 'Example'),
+                'address' => trim(env('MAIL_FROM_ADDRESS', 'hello@example.com'), '"\'\\'),
+                'name' => trim(env('MAIL_FROM_NAME', 'Example'), '"\'\\'),
             ],
         ],
 
