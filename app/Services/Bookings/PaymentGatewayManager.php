@@ -213,11 +213,9 @@ class PaymentGatewayManager
                     'payment_link' => null, // No redirect needed for STK push
                 ];
             } catch (\Exception $e) {
-                // Fallback to standard checkout if direct charge fails?
-                // Or just rethrow. Let's log and fall back to initialize for safety, 
-                // or just let it fail if the user specifically wanted STK.
-                // For now, let's throw to be explicit.
-                throw $e;
+                // Fallback to standard checkout if direct charge fails (unprocessed_transaction/merchant restrictions)
+                \Illuminate\Support\Facades\Log::warning('Paystack STK Direct Charge failed, falling back to standard popup format: ' . $e->getMessage());
+                // Execution will fall through to initializeTransaction
             }
         }
 
@@ -240,6 +238,8 @@ class PaymentGatewayManager
 
         if ($channel === 'CARD') {
             $data['channels'] = ['card'];
+        } elseif ($channel === 'MOBILE') {
+            $data['channels'] = ['mobile_money'];
         }
 
         $response = $paystackService->initializeTransaction($data);
@@ -263,7 +263,7 @@ class PaymentGatewayManager
             $phone = '254' . substr($phone, 1);
         }
 
-        // Ensure it is returned in the pure 254... format without a +
-        return $phone;
+        // Ensure it starts with +
+        return '+' . $phone;
     }
 }
