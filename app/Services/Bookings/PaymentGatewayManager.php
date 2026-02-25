@@ -222,10 +222,15 @@ class PaymentGatewayManager
         // Default: Standard Checkout Page
         $callbackUrl = Arr::get($payload, 'callback_url', config('services.paystack.callback_url'));
 
+        // Generate a completely unique reference for this checkout attempt to prevent "Duplicate Transaction Reference" errors 
+        // if the STK push failed, or if the user is retrying a previously abandoned checkout.
+        $baseRef = $payment->booking?->reference ?? 'PAY';
+        $uniqueReference = $baseRef . '-' . strtoupper(Str::random(5));
+
         $data = [
             'email' => $customerEmail,
             'amount' => $amount,
-            'reference' => $payment->booking?->reference ?? Str::uuid()->toString(),
+            'reference' => $uniqueReference,
             'callback_url' => $callbackUrl,
             'currency' => $payment->booking?->currency ?? 'KES',
             'metadata' => [
