@@ -11,7 +11,9 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
 
-class TicketReceiptMail extends Mailable
+use Illuminate\Contracts\Queue\ShouldQueue;
+
+class TicketReceiptMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -59,14 +61,14 @@ class TicketReceiptMail extends Mailable
         $pdf = $generator->generate($booking);
 
         return [
-            Attachment::fromData(fn () => $pdf, $generator->filename($booking))
+            Attachment::fromData(fn() => $pdf, $generator->filename($booking))
                 ->withMime('application/pdf'),
         ];
     }
 
     protected function resolvedBooking(): Booking
     {
-        if (! isset($this->booking->bookable) || ! $this->booking->relationLoaded('tickets')) {
+        if (!isset($this->booking->bookable) || !$this->booking->relationLoaded('tickets')) {
             $this->booking->loadMissing(['bookable', 'tickets.ticketTier']);
         }
 
