@@ -263,7 +263,7 @@ class PaymentGatewayManager
             $phone = '254' . substr($phone, 1);
         }
 
-        // Ensure it starts with +
-        return '+' . $phone;
+        // Ensure it is returned in the pure 254... format without a +
+        return $phone;
     }
 }
