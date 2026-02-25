@@ -31,17 +31,30 @@ class ServiceMapController extends Controller
                 ];
             });
 
+        // Build a stop_id -> station_id lookup
+        $stopToStation = \App\Models\CorridorStationMember::pluck('station_id', 'stop_id')->toArray();
+
         // 2. Fetch Sacco Routes
-        // We only need the geometry (coordinates) and basic info
+        // We only need the geometry (coordinates) and basic info, plus stop_ids to map to stations
         $routes = SaccoRoutes::with('sacco:sacco_id,sacco_name,sacco_logo')
-            ->select('sacco_route_id', 'sacco_id', 'route_id', 'coordinates')
+            ->select('sacco_route_id', 'sacco_id', 'route_id', 'coordinates', 'stop_ids')
             ->get()
-            ->map(function ($route) {
+            ->map(function ($route) use ($stopToStation) {
+                $stationIds = [];
+                if (is_array($route->stop_ids)) {
+                    foreach ($route->stop_ids as $stopId) {
+                        if (isset($stopToStation[$stopId])) {
+                            $stationIds[] = $stopToStation[$stopId];
+                        }
+                    }
+                }
+
                 return [
                     'id' => $route->sacco_route_id,
                     'sacco_name' => $route->sacco->sacco_name ?? 'Unknown',
                     'route_number' => $route->route_id, // or route->route->route_number if available
                     'coordinates' => $route->coordinates, // Assuming this is cast to array in model
+                    'station_ids' => array_values(array_unique($stationIds)),
                 ];
             });
 

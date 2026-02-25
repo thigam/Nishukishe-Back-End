@@ -44,7 +44,18 @@ class HubsSeedRegionsDemo extends Command
     ['region_id'=>'nya_cbd','name'=>'Nyali','level'=>'cbd',
         'lat'=>-4.05000,'lng'=>39.70000,'res'=>7,'kr'=>2],
     ['region_id'=>'bmb_cbd','name'=>'Bamburi','level'=>'cbd',
-        'lat'=>-3.99970,'lng'=>39.71836,'res'=>7,'kr'=>2],
+    'lat'=>-3.99970,'lng'=>39.71836,'res'=>7,'kr'=>2],
+        // --- Tanzania Regions ---
+    ['region_id' => 'dar_cbd', 'name' => 'Dar es Salaam CBD', 'level' => 'cbd', 'lat' => -6.8228, 'lng' => 39.2804, 'res' => 7, 'kr' => 2],
+    ['region_id' => 'aru_cbd', 'name' => 'Arusha CBD', 'level' => 'cbd', 'lat' => -3.3667, 'lng' => 36.6833, 'res' => 7, 'kr' => 2],
+    ['region_id' => 'mza_cbd', 'name' => 'Mwanza CBD', 'level' => 'cbd', 'lat' => -2.5167, 'lng' => 32.9000, 'res' => 7, 'kr' => 2],
+    ['region_id' => 'dod_cbd', 'name' => 'Dodoma CBD', 'level' => 'cbd', 'lat' => -6.1731, 'lng' => 35.7395, 'res' => 7, 'kr' => 2],
+
+    // --- Uganda Regions ---
+    ['region_id' => 'kmp_cbd', 'name' => 'Kampala CBD', 'level' => 'cbd', 'lat' => 0.3136, 'lng' => 32.5811, 'res' => 7, 'kr' => 2],
+    ['region_id' => 'ebb_cbd', 'name' => 'Entebbe CBD', 'level' => 'cbd', 'lat' => 0.0500, 'lng' => 32.4600, 'res' => 7, 'kr' => 2],
+    ['region_id' => 'jin_cbd', 'name' => 'Jinja CBD', 'level' => 'cbd', 'lat' => 0.4390, 'lng' => 33.2032, 'res' => 7, 'kr' => 2],
+
 	];
 	    foreach ($regions as $r) {
             $cell = H3Wrapper::latLngToCell($r['lat'], $r['lng'], $r['res']);

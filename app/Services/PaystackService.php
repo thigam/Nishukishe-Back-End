@@ -79,7 +79,15 @@ class PaystackService
                 'response' => $response->json(),
                 'data' => $data
             ]);
-            throw new RuntimeException('Paystack charge failed: ' . $response->json('message', 'Unknown error') . ' | Data: ' . json_encode($data));
+
+            $msg = $response->json('message', 'Unknown error');
+            if (str_contains(strtolower($msg), 'invalid phone number')) {
+                $msg = 'Invalid phone number format. If using a Test API Key, Paystack requires the test number 0710000000.';
+            } elseif (str_contains(strtolower($msg), 'ip address is not allowed')) {
+                $msg = 'Direct Charge failed. Please go to your Paystack Dashboard -> Settings -> API Keys & Webhooks and whitelist this server\'s IP.';
+            }
+
+            throw new RuntimeException('Paystack charge failed: ' . $msg);
         }
 
         return $response->json('data');

@@ -13,6 +13,7 @@ class TransferEdge extends Model
         'to_stop_id',
         'walk_time_seconds',
         'geometry',
+        'target_is_hub',
     ];
 
     protected $casts = [

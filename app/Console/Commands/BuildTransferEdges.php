@@ -11,159 +11,144 @@ use App\Models\Stops;
 
 class BuildTransferEdges extends Command
 {
-protected $signature = 'transfers:build 
+    protected $signature = 'transfers:build 
                         {--host=http://192.168.8.29:5001} 
                         {--cap=1200} 
                         {--bbox=} 
                         {--continue : Resume from previous run}
                         {--phases=all : Comma-separated phases to run (e.g. "2,3")}'; // <--- NEW FLAG    
-protected $description = 'Build walking transfer edges using Hub-and-Spoke architecture';
+    protected $description = 'Build walking transfer edges using Hub-and-Spoke architecture';
 
     // Configuration
     private const RADIUS_LOCAL = 0.0045; // ~500m
-    private const RADIUS_HUB_ACCESS = 0.0135; // ~1.5km
+    private const RADIUS_HUB_ACCESS = 0.054; // ~6km
     private const RADIUS_BACKBONE = 0.0315; // ~3.5km
 
     private const LIMIT_LOCAL = 10;
-    private const LIMIT_HUB_ACCESS = 3;
+    private const LIMIT_HUB_ACCESS = 10;
     private const LIMIT_BACKBONE = 15;
-// Circuit Breaker: Store true (success) or false (fail) for the last 10 attempts
+    // Circuit Breaker: Store true (success) or false (fail) for the last 10 attempts
     private array $connectionHistory = [];
     private const HISTORY_LIMIT = 10;
     private const FAILURE_THRESHOLD = 3;
 
     // ..
 
-    
-public function handle()
-{
-    $host = rtrim($this->option('host'), '/');
-    $cap = (int) $this->option('cap');
-    $bbox = $this->option('bbox');
-    $resume = $this->option('continue');
-    
-    // Parse Phases
-    $phaseInput = $this->option('phases');
-    if ($phaseInput === 'all') {
-        $runPhases = [1, 2, 3, 4];
-    } else {
-        $runPhases = array_map('intval', explode(',', $phaseInput));
-    }
 
-    $this->info("Starting Build for Phases: " . implode(', ', $runPhases));
+    public function handle()
+    {
+        $host = rtrim($this->option('host'), '/');
+        $cap = (int) $this->option('cap');
+        $bbox = $this->option('bbox');
+        $resume = $this->option('continue');
 
-    // 0. Load Data
-    $this->info("Loading stops and hubs...");
-    $stops = $this->loadStops($bbox);
-    $hubs = $this->loadHubs($stops);
-    $hubIds = array_keys($hubs);
-    $hubLookup = array_fill_keys($hubIds, true);
-    $this->info("Loaded " . count($stops) . " stops and " . count($hubs) . " hubs.");
-
-    // ---------------------------------------------------------
-    // Phase 1: Local Neighbors (Iterates Stops)
-    // ---------------------------------------------------------
-    if (in_array(1, $runPhases)) {
-        if (!$resume) {
-            $this->info("Truncating table for fresh Phase 1 run...");
-            DB::table('transfer_edges')->truncate();
+        // Parse Phases
+        $phaseInput = $this->option('phases');
+        if ($phaseInput === 'all') {
+            $runPhases = [1, 2, 3, 4];
+        } else {
+            $runPhases = array_map('intval', explode(',', $phaseInput));
         }
-        
-        $this->info("Phase 1: Building Local Neighbor Edges (500m)...");
-        $total = count($stops);
-        $current = 0;
-        $localEdges = 0;
-        
-        foreach ($stops as $stop) {
-            $current++;
-            $candidates = $this->findNeighbors($stop, $stops, self::RADIUS_LOCAL, self::LIMIT_LOCAL);
-            $localEdges += $this->processEdges($host, $stop, $candidates, $cap);
-            
-            // Log every 200 items
-            if ($current % 200 === 0) {
-                $pct = round(($current / $total) * 100);
-                $this->info("[Phase 1] Progress: $current / $total ($pct%)");
-            }
-        }
-        $this->info("Phase 1 Complete. Created $localEdges edges.");
-    }
 
-    // ---------------------------------------------------------
-    // Phase 2: Hub Access (Iterates Stops)
-    // ---------------------------------------------------------
-    if (in_array(2, $runPhases)) {
-        $this->info("Phase 2: Building Hub Access Edges (1.5km)...");
-        $total = count($stops);
-        $current = 0;
-        $accessEdges = 0;
+        $this->info("Starting Build for Phases: " . implode(', ', $runPhases));
 
-        foreach ($stops as $stop) {
-            $current++;
-            
-            // Log every 200 items (Adjust this number if it's too spammy)
-            if ($current % 200 === 0) {
-                $pct = round(($current / $total) * 100);
-                $this->info("[Phase 2] Progress: $current / $total ($pct%)");
-            }
+        // 0. Load Data
+        $this->info("Loading stops and hubs...");
+        $stops = $this->loadStops($bbox);
+        $hubs = $this->loadHubs($stops);
+        $hubIds = array_keys($hubs);
+        $hubLookup = array_fill_keys($hubIds, true);
+        $this->info("Loaded " . count($stops) . " stops and " . count($hubs) . " hubs.");
 
-            if (isset($hubLookup[$stop->direction_id])) continue;
-
-            $candidates = $this->findNeighbors($stop, $hubs, self::RADIUS_HUB_ACCESS, self::LIMIT_HUB_ACCESS);
-            
-            // Ingress (Stop -> Hub)
-            $accessEdges += $this->processEdges($host, $stop, $candidates, $cap);
-            
-            // Egress (Hub -> Stop)
-            foreach ($candidates as $hub) {
-                $accessEdges += $this->processEdges($host, $hub, [$stop], $cap);
-            }
-        }
-        $this->info("Phase 2 Complete. Created/Updated $accessEdges edges.");
-    }
-
-    // ---------------------------------------------------------
-    // Phase 3: Hub Backbone (Iterates Hubs)
-    // ---------------------------------------------------------
-    if (in_array(3, $runPhases)) {
-        $this->info("Phase 3: Building Hub Backbone (3.5km)...");
-        $total = count($hubs);
-        $current = 0;
-        $backboneEdges = 0;
-
+        $this->info("--- List of Hubs ---");
         foreach ($hubs as $hub) {
-            $current++;
-            
-            // Log every 10 items (Since hubs are few, log more often)
-            if ($current % 10 === 0) {
-                $pct = round(($current / $total) * 100);
-                $this->info("[Phase 3] Progress: $current / $total ($pct%)");
-            }
-
-            $candidates = $this->findNeighbors($hub, $hubs, self::RADIUS_BACKBONE, self::LIMIT_BACKBONE);
-            $backboneEdges += $this->processEdges($host, $hub, $candidates, $cap);
+            $this->info(" - " . ($hub->direction_name ?? $hub->stop_name ?? $hub->direction_id));
         }
-        $this->info("Phase 3 Complete. Created/Updated $backboneEdges edges.");
-    }
+        $this->info("--------------------");
 
-    // ---------------------------------------------------------
-    // Phase 4: Cluster Shortcuts
-    // ---------------------------------------------------------
-    if (in_array(4, $runPhases)) {
-        $this->info("Phase 4: Building Cluster Shortcuts...");
-        // Pass a simple callback to log progress from inside the function
-        $shortcutEdges = $this->buildShortcuts($host, $cap, function($current, $total) {
-            if ($current % 50 === 0) {
-                $pct = round(($current / $total) * 100);
-                $this->info("[Phase 4] Progress: $current / $total ($pct%)");
+        // ---------------------------------------------------------
+        // Phase 1: Local Neighbors (Iterates Stops)
+        // ---------------------------------------------------------
+        if (in_array(1, $runPhases)) {
+            if (!$resume) {
+                $this->info("Truncating table for fresh Phase 1 run...");
+                DB::table('transfer_edges')->truncate();
             }
-        });
-        $this->info("Phase 4 Complete. Created $shortcutEdges edges.");
-    }
 
-    $totalDB = DB::table('transfer_edges')->count();
-    $this->info("Selected Phases Complete. Total Edges in DB: $totalDB");
-}
-private function loadStops(?string $bbox)
+            $this->info("Phase 1: Building Local Neighbor Edges (500m)...");
+            $total = count($stops);
+            $current = 0;
+            $localEdges = 0;
+
+            foreach ($stops as $stop) {
+                $current++;
+                $candidates = $this->findNeighbors($stop, $stops, self::RADIUS_LOCAL, self::LIMIT_LOCAL);
+                $localEdges += $this->processEdges($host, $stop, $candidates, $cap, $hubLookup);
+
+                // Log every 200 items
+                if ($current % 200 === 0) {
+                    $pct = round(($current / $total) * 100);
+                    $this->info("[Phase 1] Progress: $current / $total ($pct%)");
+                }
+            }
+            $this->info("Phase 1 Complete. Created $localEdges edges.");
+        }
+
+        // ---------------------------------------------------------
+        // Phase 2: Hub Access (Iterates ALL Stops, including Hubs)
+        // ---------------------------------------------------------
+        if (in_array(2, $runPhases)) {
+            $this->info("Phase 2: Building Hub Access Edges (6.0km)...");
+            $total = count($stops);
+            $current = 0;
+            $accessEdges = 0;
+
+            foreach ($stops as $stop) {
+                $current++;
+
+                // Log every 200 items (Adjust this number if it's too spammy)
+                if ($current % 200 === 0) {
+                    $pct = round(($current / $total) * 100);
+                    $this->info("[Phase 2] Progress: $current / $total ($pct%)");
+                }
+
+                // REMOVED: if (isset($hubLookup[$stop->direction_id])) continue;
+                // Now hubs will also seek out the 10 nearest hubs
+
+                $candidates = $this->findNeighbors($stop, $hubs, self::RADIUS_HUB_ACCESS, self::LIMIT_HUB_ACCESS);
+
+                // Ingress (Stop -> Hub)
+                $accessEdges += $this->processEdges($host, $stop, $candidates, $cap, $hubLookup);
+
+                // Egress (Hub -> Stop)
+                foreach ($candidates as $hub) {
+                    $accessEdges += $this->processEdges($host, $hub, [$stop], $cap, $hubLookup);
+                }
+            }
+            $this->info("Phase 2 Complete. Created/Updated $accessEdges edges.");
+        }
+
+        // Phase 3 (Hub Backbone) removed as per new plan.
+
+        // ---------------------------------------------------------
+        // Phase 4: Cluster Shortcuts
+        // ---------------------------------------------------------
+        if (in_array(4, $runPhases)) {
+            $this->info("Phase 4: Building Cluster Shortcuts...");
+            // Pass a simple callback to log progress from inside the function
+            $shortcutEdges = $this->buildShortcuts($host, $cap, function ($current, $total) {
+                if ($current % 50 === 0) {
+                    $pct = round(($current / $total) * 100);
+                    $this->info("[Phase 4] Progress: $current / $total ($pct%)");
+                }
+            });
+            $this->info("Phase 4 Complete. Created $shortcutEdges edges.");
+        }
+
+        $totalDB = DB::table('transfer_edges')->count();
+        $this->info("Selected Phases Complete. Total Edges in DB: $totalDB");
+    }
+    private function loadStops(?string $bbox)
     {
         $query = Directions::query();
         if ($bbox) {
@@ -217,7 +202,7 @@ private function loadStops(?string $bbox)
         return array_map(fn($x) => $x['stop'], array_slice($found, 0, $limit));
     }
 
-    private function processEdges($host, $origin, array $destinations, int $cap)
+    private function processEdges($host, $origin, array $destinations, int $cap, array $hubLookup = [])
     {
         $count = 0;
         foreach ($destinations as $dest) {
@@ -225,14 +210,14 @@ private function loadStops(?string $bbox)
             if ($this->edgeExists($origin->direction_id, $dest->direction_id))
                 continue;
 
-            if ($this->createEdge($host, $origin, $dest, $cap)) {
+            if ($this->createEdge($host, $origin, $dest, $cap, $hubLookup)) {
                 $count++;
             }
         }
         return $count;
     }
 
-private function createEdge($host, $from, $to, $cap)
+    private function createEdge($host, $from, $to, $cap, array $hubLookup = [])
     {
         $url = "{$host}/route/v1/foot/{$from->direction_longitude},{$from->direction_latitude};{$to->direction_longitude},{$to->direction_latitude}?overview=full&geometries=geojson";
 
@@ -243,15 +228,21 @@ private function createEdge($host, $from, $to, $cap)
             if ($resp->ok()) {
                 // SUCCESS
                 $this->checkCircuitBreaker(true); // Reset breaker
-                
+
                 $duration = (int) round($resp->json('routes.0.duration', INF));
                 if ($duration <= $cap) {
                     $rawGeom = $resp->json('routes.0.geometry.coordinates', []);
                     $geometry = array_map(fn($xy) => [$xy[1], $xy[0]], $rawGeom);
 
+                    $isHub = isset($hubLookup[$to->direction_id]);
+
                     TransferEdge::updateOrCreate(
                         ['from_stop_id' => $from->direction_id, 'to_stop_id' => $to->direction_id],
-                        ['walk_time_seconds' => $duration, 'geometry' => $geometry]
+                        [
+                            'walk_time_seconds' => $duration,
+                            'geometry' => $geometry,
+                            'target_is_hub' => $isHub
+                        ]
                     );
                     return true;
                 }
@@ -269,11 +260,11 @@ private function createEdge($host, $from, $to, $cap)
             // This catches Timeouts (Curl error 28).
             // We treat this as a "Poison Pill" (Bad Data), NOT a network crash.
             $this->warn("⏳ POISON PILL (Timeout) skipped: {$from->direction_id} -> {$to->direction_id}");
-            
+
             // Do NOT trip the circuit breaker.
             // Do NOT crash.
             // Just return false and move to the next one.
-            return false; 
+            return false;
 
         } catch (\Exception $e) {
             // Other errors (like "Connection Refused") are still real crashes
@@ -281,58 +272,61 @@ private function createEdge($host, $from, $to, $cap)
             $this->checkCircuitBreaker(false);
             return false;
         }
-}
+    }
 
-// Add the $progressCallback = null argument
-private function buildShortcuts($host, $cap, $progressCallback = null)
-{
-    // 1. Get all Hub-to-Hub edges (Backbone)
-    $hubEdges = TransferEdge::whereIn('from_stop_id', function ($q) {
-        $q->select('stop_id')->from('transit_hubs');
-    })->whereIn('to_stop_id', function ($q) {
-        $q->select('stop_id')->from('transit_hubs');
-    })->get();
+    // Add the $progressCallback = null argument
+    private function buildShortcuts($host, $cap, $progressCallback = null)
+    {
+        // 1. Get all Hub-to-Hub edges (Backbone)
+        $hubEdges = TransferEdge::whereIn('from_stop_id', function ($q) {
+            $q->select('stop_id')->from('transit_hubs');
+        })->whereIn('to_stop_id', function ($q) {
+            $q->select('stop_id')->from('transit_hubs');
+        })->get();
 
-    $count = 0;
-    $total = $hubEdges->count(); // Get total for progress
-    $current = 0;
+        $count = 0;
+        $total = $hubEdges->count(); // Get total for progress
+        $current = 0;
 
-    $stops = $this->loadStops(null); 
+        $stops = $this->loadStops(null);
 
-    foreach ($hubEdges as $edge) {
-        $current++;
-        
-        // Trigger the callback if provided
-        if ($progressCallback) {
-            $progressCallback($current, $total);
-        }
+        foreach ($hubEdges as $edge) {
+            $current++;
 
-        $h1 = $edge->from_stop_id;
-        $h2 = $edge->to_stop_id;
+            // Trigger the callback if provided
+            if ($progressCallback) {
+                $progressCallback($current, $total);
+            }
 
-        // ... Rest of your existing logic ...
-        $spokes1 = TransferEdge::where('to_stop_id', $h1)->pluck('from_stop_id')->toArray();
-        $spokes2 = TransferEdge::where('from_stop_id', $h2)->pluck('to_stop_id')->toArray();
+            $h1 = $edge->from_stop_id;
+            $h2 = $edge->to_stop_id;
 
-        $spokes1[] = $h1;
-        $spokes2[] = $h2;
-        $spokes1 = array_unique($spokes1);
-        $spokes2 = array_unique($spokes2);
+            // ... Rest of your existing logic ...
+            $spokes1 = TransferEdge::where('to_stop_id', $h1)->pluck('from_stop_id')->toArray();
+            $spokes2 = TransferEdge::where('from_stop_id', $h2)->pluck('to_stop_id')->toArray();
 
-        foreach ($spokes1 as $s1) {
-            foreach ($spokes2 as $s2) {
-                if ($s1 === $s2) continue;
-                if (!isset($stops[$s1]) || !isset($stops[$s2])) continue;
-                if ($this->edgeExists($s1, $s2)) continue;
+            $spokes1[] = $h1;
+            $spokes2[] = $h2;
+            $spokes1 = array_unique($spokes1);
+            $spokes2 = array_unique($spokes2);
 
-                if ($this->createEdge($host, $stops[$s1], $stops[$s2], $cap)) {
-                    $count++;
+            foreach ($spokes1 as $s1) {
+                foreach ($spokes2 as $s2) {
+                    if ($s1 === $s2)
+                        continue;
+                    if (!isset($stops[$s1]) || !isset($stops[$s2]))
+                        continue;
+                    if ($this->edgeExists($s1, $s2))
+                        continue;
+
+                    if ($this->createEdge($host, $stops[$s1], $stops[$s2], $cap)) {
+                        $count++;
+                    }
                 }
             }
         }
+        return $count;
     }
-    return $count;
-}
     private function edgeExists($from, $to)
     {
         // Simple memory cache could optimize this if needed
@@ -353,7 +347,7 @@ private function buildShortcuts($host, $cap, $progressCallback = null)
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
         return $earthRadius * $c;
     }
-private function checkCircuitBreaker(bool $wasSuccessful)
+    private function checkCircuitBreaker(bool $wasSuccessful)
     {
         // Add result to history
         $this->connectionHistory[] = $wasSuccessful;

@@ -196,6 +196,7 @@ class PublicBookableController extends Controller
         $summary['bookable']['starts_at'] = optional($bookable->starts_at)->toIso8601String();
         $summary['bookable']['ends_at'] = optional($bookable->ends_at)->toIso8601String();
         $summary['safari']['seat_map'] = $instance->seat_map;
+        $summary['safari']['seating_configuration'] = $instance->seating_configuration;
         $summary['safari']['metadata'] = $instance->metadata;
         $summary['safari']['trip_id'] = $instance->trip_id;
         $summary['safari']['vehicle_id'] = $instance->vehicle_id;

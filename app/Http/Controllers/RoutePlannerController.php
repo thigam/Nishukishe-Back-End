@@ -30,7 +30,7 @@ class RoutePlannerController extends Controller
     private const BUS_SPEED_KMPH = 22.0; // optimistic to keep heuristic admissible
     private const WALK_SPEED_KMPH = 3;
     private const WALK_WEIGHT = 1.0;  // walking is perceived as longer
-    private const TRANSFER_PENALTY = 10.0;  // minutes equivalent per transfer
+    private const TRANSFER_PENALTY = 35.0;  // minutes equivalent per transfer
 
     // How many goal paths A* should collect before stopping
     private const MAX_CANDIDATES = 30;
@@ -680,7 +680,48 @@ class RoutePlannerController extends Controller
                         'to_stop_id' => $toDir,
                         'walk_time_seconds' => $r['duration_s'] ?? ($minutes * 60),
                         'geometry' => $coords,
+                        'target_is_hub' => false // Direct edge synthetic save
                     ]);
+                }
+            }
+        }
+
+        // --- NEW: HUB INTERSECTION FALLBACK ---
+        // If OSRM failed (e.g. server down, or impossible path) and we still have no coords, 
+        // try to bridge via a common hub exactly like StationRaptor does.
+        if (empty($coords)) {
+            $fromHubEdges = TransferEdge::where('from_stop_id', $fromDir)->where('target_is_hub', true)->get()->keyBy('to_stop_id');
+            $toHubEdges = TransferEdge::where('from_stop_id', $toDir)->where('target_is_hub', true)->get()->keyBy('to_stop_id');
+
+            if ($fromHubEdges->isNotEmpty() && $toHubEdges->isNotEmpty()) {
+                $commonHubs = $fromHubEdges->keys()->intersect($toHubEdges->keys());
+
+                if ($commonHubs->isNotEmpty()) {
+                    $bestHubId = null;
+                    $bestTime = INF;
+                    foreach ($commonHubs as $hubId) {
+                        $time = clone $fromHubEdges[$hubId]->walk_time_seconds + $toHubEdges[$hubId]->walk_time_seconds;
+                        if ($time < $bestTime) {
+                            $bestTime = $time;
+                            $bestHubId = $hubId;
+                        }
+                    }
+
+                    if ($bestHubId && $bestTime <= self::WALK_CAP_M * 60) {
+                        // We found a bridge!
+                        // $fromHubEdges[$bestHubId]->geometry is $from -> Hub
+                        // $toHubEdges[$bestHubId]->geometry is $to -> Hub. 
+                        // To get Hub -> $to, we must reverse the second array.
+
+                        $geom1 = is_array($fromHubEdges[$bestHubId]->geometry) ? $fromHubEdges[$bestHubId]->geometry : [];
+                        $geom2 = is_array($toHubEdges[$bestHubId]->geometry) ? array_reverse($toHubEdges[$bestHubId]->geometry) : [];
+
+                        $coords = array_merge($geom1, $geom2);
+                        $minutes = (int) ceil($bestTime / 60);
+
+                        // We do not save this highly complex synthetic edge to the DB to avoid bloat, 
+                        // just return it dynamically for this request.
+                    }
                 }
             }
         }

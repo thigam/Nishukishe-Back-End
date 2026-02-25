@@ -183,7 +183,7 @@ class PaymentGatewayManager
                 'amount' => $amount,
                 'currency' => $payment->booking?->currency ?? 'KES',
                 'mobile_money' => [
-                    'phone' => $formattedPhone,
+                    'phone' => str_replace('+', '', $formattedPhone),
                     'provider' => 'mpesa'
                 ],
                 'reference' => $payment->booking?->reference ?? Str::uuid()->toString(),

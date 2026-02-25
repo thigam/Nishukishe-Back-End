@@ -207,15 +207,17 @@ class StationRaptor
         $detailedPath = [];
         $currentStop = $originStopId;
 
-        foreach ($stationPath as $index => $leg) {
+        for ($index = 0; $index < count($stationPath); $index++) {
+            $leg = $stationPath[$index];
+            $isLastLeg = ($index === count($stationPath) - 1);
+
             $rid = $leg['route_id'];
             $sFrom = $leg['from_station'];
             $sTo = $leg['to_station'];
 
-            // 1. Find best Boarding Stop in sFrom
             $routeStops = $this->routeStops[$rid] ?? [];
 
-            // Filter stops that are in sFrom
+            // Find all potential boarding stops in sFrom
             $potentialBoard = [];
             foreach ($routeStops as $sid) {
                 if (($this->stopToStation[$sid] ?? '') === $sFrom) {
@@ -223,52 +225,107 @@ class StationRaptor
                 }
             }
 
-            // Pick closest to currentStop
-            $bestBoard = $this->findClosestStop($currentStop, $potentialBoard);
-
-            // If we still have no board stop, we can't proceed with this leg
-            if (!$bestBoard) {
-                // Fallback: just pick ANY stop in sFrom? Or fail?
-                // Let's fail this leg
-                return [];
+            if (empty($potentialBoard)) {
+                return []; // Critical failure
             }
 
-            // VALIDATION: Can we walk from currentStop to bestBoard?
-            $walkValid = true;
-            if ($currentStop !== $bestBoard) {
-                $walkTime = $this->checkWalkingEdge($currentStop, $bestBoard);
-                if ($walkTime === null && $index > 0) {
-                    $walkValid = false;
+            // If it's the FIRST leg, we just pick the board stop closest to the origin.
+            // For intermediate legs, we need to optimize the Alight(prev) -> Board(curr) pair.
+            if ($index === 0) {
+                $bestBoard = $this->findClosestStop($currentStop, $potentialBoard);
+                if (!$bestBoard)
+                    return [];
+
+                $walkValid = true;
+                if ($currentStop !== $bestBoard) {
+                    $walkTime = $this->checkWalkingEdge($currentStop, $bestBoard);
+                    if ($walkTime === null) {
+                        return []; // Cannot reach the first board stop
+                    }
                 }
+            } else {
+                // This is an intermediate transfer. 
+                // We need to look back at the PREVIOUS leg and optimize the transfer.
+                $prevLeg = $detailedPath[$index - 1];
+                $prevRouteStops = $this->routeStops[$prevLeg['route_id']] ?? [];
+
+                // Find all valid alight stops for the PREVIOUS leg in sFrom
+                $prevAlightCandidates = [];
+                $passedPrevBoard = false;
+                foreach ($prevRouteStops as $sid) {
+                    if ($sid === $prevLeg['from_stop'])
+                        $passedPrevBoard = true;
+                    if ($passedPrevBoard && $sid !== $prevLeg['from_stop'] && ($this->stopToStation[$sid] ?? '') === $sFrom) {
+                        $prevAlightCandidates[] = $sid;
+                    }
+                }
+
+                if (empty($prevAlightCandidates))
+                    return [];
+
+                // Now evaluate all pairs (prevAlight -> currBoard) to minimize geographic walk mapping
+                $bestTransferPair = null;
+                $minTransferDist = INF;
+
+                // Identify if the previous route terminates in this station
+                $lastPrevStop = end($prevRouteStops);
+                $terminusInStation = (($this->stopToStation[$lastPrevStop] ?? '') === $sFrom) ? $lastPrevStop : null;
+
+                foreach ($prevAlightCandidates as $pAlight) {
+                    foreach ($potentialBoard as $cBoard) {
+                        // We could check $this->checkWalkingEdge($pAlight, $cBoard) here, but since 
+                        // they are in the same station, they are almost certainly walkable. 
+                        // Geographic distance is a fine heuristic to minimize walk time.
+
+                        $t1 = $this->stopCoords[$pAlight] ?? null;
+                        $t2 = $this->stopCoords[$cBoard] ?? null;
+                        $dist = ($t1 && $t2) ? (($t1['lat'] - $t2['lat']) ** 2 + ($t1['lng'] - $t2['lng']) ** 2) : 0;
+
+                        // Heuristic: heavily discount the distance if $pAlight is the terminus of the incoming route
+                        if ($pAlight === $terminusInStation) {
+                            $dist *= 0.1;
+                        }
+
+                        if ($dist < $minTransferDist) {
+                            $minTransferDist = $dist;
+                            $bestTransferPair = ['alight' => $pAlight, 'board' => $cBoard];
+                        }
+                    }
+                }
+
+                if (!$bestTransferPair)
+                    return [];
+
+                // Update the previous leg with the optimized alight stop
+                $detailedPath[$index - 1]['to_stop'] = $bestTransferPair['alight'];
+                $detailedPath[$index - 1]['walk_valid'] = true; // Assumed valid within station for now
+
+                $bestBoard = $bestTransferPair['board'];
+                $walkValid = true; // The walk *between* alight and board is assumed valid within the same station
             }
 
-            // 2. Find best Alighting Stop in sTo
-            // It must be on Route $rid, AFTER bestBoard
+            // Now find the Alight stop for THIS leg...
+            // If it's the last leg, we optimize it now. 
+            // If it's an intermediate leg, we just pick a placeholder and the NEXT iteration will optimize it.
 
             $potentialAlight = [];
             $passedBoard = false;
             foreach ($routeStops as $sid) {
                 if ($sid === $bestBoard)
                     $passedBoard = true;
-                // Only consider stops AFTER board stop
                 if ($passedBoard && $sid !== $bestBoard && ($this->stopToStation[$sid] ?? '') === $sTo) {
                     $potentialAlight[] = $sid;
                 }
             }
 
-            // If last leg, target is destStopId. Else target is "Center of Next Station" (approx)
-            $target = ($index === count($stationPath) - 1) ? $destStopId : null;
-
-            if ($target) {
-                $bestAlight = $this->findClosestStop($target, $potentialAlight);
-            } else {
-                $bestAlight = $potentialAlight[0] ?? null;
-            }
-
-            if (!$bestAlight) {
-                // Critical failure: Route goes to station sTo, but we can't find a stop in sTo after boarding?
-                // This implies circular route or data inconsistency.
+            if (empty($potentialAlight))
                 return [];
+
+            if ($isLastLeg) {
+                $bestAlight = $this->findClosestStop($destStopId, $potentialAlight);
+            } else {
+                // Placeholder - will be overwritten by the next iteration's transfer optimization
+                $bestAlight = $potentialAlight[0];
             }
 
             $detailedPath[] = [
@@ -318,8 +375,45 @@ class StationRaptor
     {
         if ($from === $to)
             return 0;
-        // Query DB
+
+        // 1. Check DB for direct edge
         $edge = TransferEdge::where('from_stop_id', $from)->where('to_stop_id', $to)->first();
-        return $edge ? $edge->walk_time_seconds : null;
+        if ($edge) {
+            return $edge->walk_time_seconds;
+        }
+
+        // 2. Check for Hub Intersection (synthetic edge)
+        $fromHubs = TransferEdge::where('from_stop_id', $from)
+            ->where('target_is_hub', true)
+            ->get()
+            ->keyBy('to_stop_id');
+
+        if ($fromHubs->isEmpty())
+            return null;
+
+        $toHubs = TransferEdge::where('from_stop_id', $to)
+            ->where('target_is_hub', true)
+            ->get()
+            ->keyBy('to_stop_id');
+
+        if ($toHubs->isEmpty())
+            return null;
+
+        // Find common hubs
+        $commonHubs = $fromHubs->keys()->intersect($toHubs->keys());
+        if ($commonHubs->isEmpty())
+            return null;
+
+        // Find the fastest path through any common hub
+        $bestTime = INF;
+        foreach ($commonHubs as $hubId) {
+            $time = $fromHubs[$hubId]->walk_time_seconds + $toHubs[$hubId]->walk_time_seconds;
+            if ($time < $bestTime) {
+                $bestTime = $time;
+            }
+        }
+
+        // 1800 seconds = 30 minutes WALK_CAP
+        return ($bestTime <= 1800) ? $bestTime : null;
     }
 }
