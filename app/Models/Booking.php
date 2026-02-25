@@ -99,7 +99,7 @@ class Booking extends Model
         $this->save();
 
         if ($this->status === 'confirmed') {
-            $freshBooking = $this->fresh(['tickets', 'bookable.saccoRoute.route', 'bookable.sacco']);
+            $freshBooking = $this->fresh(['tickets', 'bookable.sacco', 'bookable.safari.saccoRoute.route']);
 
             // Send Email
             \Illuminate\Support\Facades\Mail::to($this->customer_email)->send(new \App\Mail\TicketReceiptMail($freshBooking));
@@ -108,11 +108,10 @@ class Booking extends Model
             try {
                 $smsService = app(\App\Services\SmsService::class);
                 if ($this->customer_phone) {
-                    $ticket = $freshBooking->tickets->first(); // Send one SMS per booking for now, or loop? Usually one main SMS is enough.
-                    // Let's send one SMS with the first ticket details + count
+                    $ticket = $freshBooking->tickets->first(); // Send one SMS per booking
                     if ($ticket) {
                         $saccoName = $freshBooking->bookable->sacco->sacco_name ?? 'Nishukishe';
-                        $route = $freshBooking->bookable->saccoRoute->route->name ?? 'Safari';
+                        $route = $freshBooking->bookable->safari?->saccoRoute?->route?->name ?? $freshBooking->bookable->title ?? 'Experience';
                         $time = $freshBooking->bookable->starts_at?->format('d M H:i') ?? '';
                         $ticketNumber = $ticket->ticket_number ?? $freshBooking->reference;
 
