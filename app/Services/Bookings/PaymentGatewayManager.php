@@ -163,7 +163,7 @@ class PaymentGatewayManager
         $payment->loadMissing('booking');
 
         $customerEmail = Arr::get($payload, 'customer_email', $payment->booking?->customer_email);
-        $amount = $payment->amount * 100; // Paystack expects amount in kobo/cents
+        $amount = (int) round($payment->amount * 100); // Paystack expects integer amount in kobo/cents
 
         if (!$customerEmail) {
             throw new RuntimeException('Customer email is required for Paystack payments.');
@@ -186,7 +186,7 @@ class PaymentGatewayManager
                     'phone' => $formattedPhone,
                     'provider' => 'mpesa'
                 ],
-                'reference' => $payment->booking?->reference ?? Str::uuid()->toString(),
+                'reference' => $payment->booking?->reference,
                 'metadata' => [
                     'booking_id' => $payment->booking?->id,
                     'custom_fields' => [
