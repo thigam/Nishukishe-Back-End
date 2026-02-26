@@ -54,6 +54,7 @@ class BookableCheckoutController extends Controller
             'tickets.*.passengers' => ['nullable', 'array'],
             'tickets.*.seat_number' => ['nullable', 'string'],
             'session_id' => ['nullable', 'string'],
+            'callback_url' => ['nullable', 'string'],
         ]);
 
         if ($validator->fails()) {
