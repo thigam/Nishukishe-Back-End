@@ -178,6 +178,9 @@ class PaymentGatewayManager
         if ($channel === 'MOBILE' && $customerPhone) {
             $formattedPhone = $this->normalizePhoneNumber($customerPhone);
 
+            $baseRef = $payment->booking?->reference ?? 'PAY';
+            $uniqueReference = $baseRef . '-' . strtoupper(Str::random(5));
+
             $data = [
                 'email' => $customerEmail,
                 'amount' => $amount,
@@ -186,7 +189,7 @@ class PaymentGatewayManager
                     'phone' => $formattedPhone,
                     'provider' => 'mpesa'
                 ],
-                'reference' => $payment->booking?->reference,
+                'reference' => $uniqueReference,
                 'metadata' => [
                     'booking_id' => $payment->booking?->id,
                     'custom_fields' => [
