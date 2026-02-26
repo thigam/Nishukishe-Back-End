@@ -34,6 +34,8 @@ class JengaController extends Controller
             }
         }
 
+        $payment->load('booking');
+
         return response()->json([
             'ok' => true,
             'status' => $payment->status,

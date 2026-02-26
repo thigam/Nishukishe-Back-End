@@ -18,11 +18,11 @@ class PaystackController extends Controller
 
     public function verify(Request $request)
     {
-        $request->validate([
-            'reference' => 'required|string',
-        ]);
+        $reference = $request->input('reference') ?? $request->input('data.reference');
 
-        $reference = $request->input('reference');
+        if (!$reference) {
+            return response()->json(['error' => 'Reference is required'], 400);
+        }
 
         try {
             $data = $this->paystackService->verifyTransaction($reference);
@@ -32,9 +32,9 @@ class PaystackController extends Controller
                 // In PaymentGatewayManager, we set reference to booking reference.
                 // However, multiple payments might exist for a booking.
                 // Ideally we should have stored payment_id in metadata and Paystack returns it.
-                
+
                 $paymentId = $data['metadata']['payment_id'] ?? null;
-                
+
                 if ($paymentId) {
                     $payment = Payment::find($paymentId);
                     if ($payment && $payment->status !== 'completed') {
@@ -44,7 +44,7 @@ class PaystackController extends Controller
                             'payload' => array_merge($payment->payload ?? [], ['paystack_response' => $data]),
                             'paid_at' => now(),
                         ]);
-                        
+
                         // Trigger any booking status updates if needed
                         if ($payment->booking) {
                             $payment->booking->markAsPaid();

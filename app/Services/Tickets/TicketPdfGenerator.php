@@ -21,6 +21,11 @@ class TicketPdfGenerator
 
         $qrImages = $this->generateQrImages($booking);
 
+        $tempDir = storage_path('framework/cache/mpdf');
+        if (!file_exists($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
         $mpdf = new Mpdf([
             'mode' => 'utf-8',
             'format' => 'A4',
@@ -28,7 +33,7 @@ class TicketPdfGenerator
             'margin_right' => 12,
             'margin_top' => 20,
             'margin_bottom' => 20,
-            'tempDir' => storage_path('framework/cache/mpdf'),
+            'tempDir' => $tempDir,
         ]);
 
         $html = view('pdf.booking_tickets', [
