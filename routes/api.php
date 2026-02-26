@@ -208,6 +208,7 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->group(functi
     Route::post('paystack/verify', [\App\Http\Controllers\PaystackController::class, 'verify'])->name('paystack.verify');
     Route::post('jenga/callback', [JengaController::class, 'callback'])->name('jenga.callback');
     Route::get('payments/{payment}', [JengaController::class, 'show'])->name('payments.show');
+    Route::get('payments/reference/{payment:provider_reference}', [JengaController::class, 'show'])->name('payments.show.reference');
     Route::get('comments/{subjectType}/{subjectId}', [CommentController::class, 'index'])
         ->name('comments.index');
     Route::get('bookables/tours', [PublicBookableController::class, 'tourEvents'])
