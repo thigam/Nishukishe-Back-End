@@ -122,26 +122,26 @@ return [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
-        /*
-    |--------------------------------------------------------------------------
-    | Autoloaded Service Providers
-    |--------------------------------------------------------------------------
-    |
-    | These service providers will be automatically loaded on the
-    | request to your application. Feel free to add your own.
-    |
-    */
+    /*
+|--------------------------------------------------------------------------
+| Autoloaded Service Providers
+|--------------------------------------------------------------------------
+|
+| These service providers will be automatically loaded on the
+| request to your application. Feel free to add your own.
+|
+*/
 
-	    /*
-    |--------------------------------------------------------------------------
-    | Autoloaded Service Providers
-    |--------------------------------------------------------------------------
-    |
-    | The service providers listed here will be automatically loaded on the
-    | request to your application. Feel free to add your own services to
-    | this array to grant expanded functionality to your applications.
-    |
-    */
+    /*
+|--------------------------------------------------------------------------
+| Autoloaded Service Providers
+|--------------------------------------------------------------------------
+|
+| The service providers listed here will be automatically loaded on the
+| request to your application. Feel free to add your own services to
+| this array to grant expanded functionality to your applications.
+|
+*/
 
     'providers' => [
 
@@ -183,7 +183,7 @@ return [
         // ...any others you have...
     ],
 
-    'frontend_url' => env('APP_URL', 'http://localhost:3000'),
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
 
 
