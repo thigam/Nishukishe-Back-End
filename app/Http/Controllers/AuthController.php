@@ -130,6 +130,8 @@ class AuthController extends Controller
         $state = $this->encodeState([
             'mode' => 'login',
             'role' => $request->query('role'),
+            'sacco_id' => $request->query('sacco_id'),
+            'redirect' => $request->query('redirect'),
         ]);
 
         return $this->googleRedirectResponse($state);
@@ -552,6 +554,15 @@ class AuthController extends Controller
                 'is_approved' => $roleValue === UserRole::USER,
                 'email_verified_at' => now(),
             ]);
+
+            // Save Sacco ID if provided for relevant roles
+            $saccoId = $state['sacco_id'] ?? null;
+            if ($saccoId && ($roleValue === UserRole::SACCO)) {
+                SaccoManager::create([
+                    'user_id' => $user->id,
+                    'sacco_id' => $saccoId,
+                ]);
+            }
         } else {
             if (!$user->google_id) {
                 $user->google_id = $googleUser->getId();
@@ -574,7 +585,7 @@ class AuthController extends Controller
             return $this->redirectWithError('pending_approval', 'Your account is pending approval.');
         }
 
-        return $this->redirectWithToken($user);
+        return $this->redirectWithToken($user, 'login', null, $state['redirect'] ?? null);
     }
 
     protected function linkGoogleAccount(array $state, SocialiteUser $googleUser): RedirectResponse
@@ -610,7 +621,7 @@ class AuthController extends Controller
         return $this->redirectWithToken($user, 'link', 'Google account connected successfully.');
     }
 
-    protected function redirectWithToken(User $user, string $mode = 'login', ?string $message = null): RedirectResponse
+    protected function redirectWithToken(User $user, string $mode = 'login', ?string $message = null, ?string $redirect = null): RedirectResponse
     {
         $token = $user->createToken('api-token')->plainTextToken;
 
@@ -620,6 +631,7 @@ class AuthController extends Controller
             'email' => $user->email,
             'mode' => $mode,
             'message' => $message,
+            'redirect' => $redirect,
         ]);
     }
 

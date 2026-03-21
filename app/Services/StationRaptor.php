@@ -232,7 +232,11 @@ class StationRaptor
             // If it's the FIRST leg, we just pick the board stop closest to the origin.
             // For intermediate legs, we need to optimize the Alight(prev) -> Board(curr) pair.
             if ($index === 0) {
-                $bestBoard = $this->findClosestStop($currentStop, $potentialBoard);
+                // Heuristic: prioritize the absolute first stop of the route
+                $firstCurrStop = $routeStops[0] ?? null;
+                $startInStation = (($this->stopToStation[$firstCurrStop] ?? '') === $sFrom) ? $firstCurrStop : null;
+
+                $bestBoard = $this->findClosestStop($currentStop, $potentialBoard, $startInStation);
                 if (!$bestBoard)
                     return [];
 
@@ -271,10 +275,14 @@ class StationRaptor
                 $lastPrevStop = end($prevRouteStops);
                 $terminusInStation = (($this->stopToStation[$lastPrevStop] ?? '') === $sFrom) ? $lastPrevStop : null;
 
+                // Identify if the CURRENT route starts in this station
+                $firstCurrStop = $routeStops[0] ?? null;
+                $startInStation = (($this->stopToStation[$firstCurrStop] ?? '') === $sFrom) ? $firstCurrStop : null;
+
                 foreach ($prevAlightCandidates as $pAlight) {
                     foreach ($potentialBoard as $cBoard) {
-                        // We could check $this->checkWalkingEdge($pAlight, $cBoard) here, but since 
-                        // they are in the same station, they are almost certainly walkable. 
+                        // We could check $this->checkWalkingEdge($pAlight, $cBoard) here, but since
+                        // they are in the same station, they are almost certainly walkable.
                         // Geographic distance is a fine heuristic to minimize walk time.
 
                         $t1 = $this->stopCoords[$pAlight] ?? null;
@@ -283,6 +291,11 @@ class StationRaptor
 
                         // Heuristic: heavily discount the distance if $pAlight is the terminus of the incoming route
                         if ($pAlight === $terminusInStation) {
+                            $dist *= 0.1;
+                        }
+
+                        // Heuristic: heavily discount the distance if $cBoard is the START of the current route
+                        if ($cBoard === $startInStation) {
                             $dist *= 0.1;
                         }
 
@@ -322,7 +335,11 @@ class StationRaptor
                 return [];
 
             if ($isLastLeg) {
-                $bestAlight = $this->findClosestStop($destStopId, $potentialAlight);
+                // Heuristic: prioritize the absolute last stop of the route
+                $lastStopOfRoute = end($routeStops);
+                $endInStation = (($this->stopToStation[$lastStopOfRoute] ?? '') === $sTo) ? $lastStopOfRoute : null;
+
+                $bestAlight = $this->findClosestStop($destStopId, $potentialAlight, $endInStation);
             } else {
                 // Placeholder - will be overwritten by the next iteration's transfer optimization
                 $bestAlight = $potentialAlight[0];
@@ -343,10 +360,20 @@ class StationRaptor
         return $detailedPath;
     }
 
-    private function findClosestStop($targetStopId, $candidates)
+    private function findClosestStop($targetStopId, $candidates, $priorityStopId = null)
     {
         if (empty($candidates))
             return null;
+
+        // Hard preference: if a priority stop (route start/end) is available in the
+        // candidates list, always return it directly — no distance contest.
+        // This is necessary because the discount heuristic fails when another candidate
+        // has a distance of exactly 0 (the origin IS that stop), which always wins.
+        if ($priorityStopId && in_array($priorityStopId, $candidates)) {
+            return $priorityStopId;
+        }
+
+        // No priority stop available: fall back to closest stop
         if (in_array($targetStopId, $candidates))
             return $targetStopId;
 
@@ -363,6 +390,7 @@ class StationRaptor
                 continue;
 
             $dist = ($t['lat'] - $s['lat']) ** 2 + ($t['lng'] - $s['lng']) ** 2;
+
             if ($dist < $minDist) {
                 $minDist = $dist;
                 $best = $c;

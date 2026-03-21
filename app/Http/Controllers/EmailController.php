@@ -28,9 +28,15 @@ class EmailController extends Controller
             ->latest();
 
         if ($user->role !== 'super_admin' || $request->query('view_all') !== 'true') {
-            $query->where(function ($q) use ($user) {
-                $q->where('recipient_email', $user->email)
-                    ->orWhere('sender_email', $user->email);
+            $query->where(function ($q) use ($user, $request) {
+                $identity = $request->query('identity', $user->email);
+                $q->where('recipient_email', $identity)
+                    ->orWhere('sender_email', $identity);
+            });
+        } elseif ($identity = $request->query('identity')) {
+            $query->where(function ($q) use ($identity) {
+                $q->where('recipient_email', $identity)
+                    ->orWhere('sender_email', $identity);
             });
         }
 
@@ -142,6 +148,7 @@ class EmailController extends Controller
             'subject' => 'required|string',
             'body_html' => 'required|string',
             'recipients' => 'required',
+            'sender_email' => 'nullable|email',
             'parent_id' => 'nullable|exists:emails,id',
             'in_reply_to_message_id' => 'nullable|string',
         ]);
@@ -178,6 +185,15 @@ class EmailController extends Controller
             $recipients = [$recipients];
         }
 
+        $senderEmail = ($user->role === 'super_admin' && $request->sender_email)
+            ? $request->sender_email
+            : $user->email;
+
+        // Ensure sender email is from allowed domain if not super admin
+        if ($user->role !== 'super_admin' && !str_ends_with($senderEmail, '@nishukishe.com')) {
+            return response()->json(['message' => 'Invalid sender email'], 403);
+        }
+
         $count = 0;
         foreach ($recipients as $recipientEmail) {
             // 1. Send via Resend
@@ -190,7 +206,7 @@ class EmailController extends Controller
                 $resend = new \Resend\Client($transporter);
 
                 $emailParams = [
-                    'from' => $user->name . ' <' . $user->email . '>',
+                    'from' => ($request->sender_name ?? $user->name) . ' <' . $senderEmail . '>',
                     'to' => [$recipientEmail],
                     'subject' => $request->subject,
                     'html' => $request->body_html,
@@ -217,7 +233,7 @@ class EmailController extends Controller
             // 2. Store in DB as outgoing
             Email::create([
                 'uuid' => Str::uuid(),
-                'sender_email' => $user->email,
+                'sender_email' => $senderEmail,
                 'recipient_email' => $recipientEmail,
                 'subject' => $request->subject,
                 'body_html' => $request->body_html,

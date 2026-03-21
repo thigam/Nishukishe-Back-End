@@ -308,6 +308,10 @@ class RoutePlannerController extends Controller
                 $mode = $leg['mode'] ?? null;
                 if ($mode === 'bus' && isset($leg['duration_minutes']) && is_numeric($leg['duration_minutes'])) {
                     $total += (float) $leg['duration_minutes'];
+                    // Add quality penalty if any
+                    if (!empty($leg['quality_penalty_minutes'])) {
+                        $total += (float) $leg['quality_penalty_minutes'];
+                    }
                 } elseif ($mode === 'walk' && isset($leg['minutes']) && is_numeric($leg['minutes'])) {
                     $total += (float) $leg['minutes'];
                 }
@@ -350,7 +354,28 @@ class RoutePlannerController extends Controller
             if (!$prefA && $prefB)
                 return 1;
 
-            // Priority 2: Cost
+            // Priority 2: Long-distance routes used for a tiny fraction are heavily penalised.
+            // We treat them as if they cost 10× more so they sort below proper city routes.
+            $ldA = false;
+            $ldB = false;
+            foreach ($a['legs'] ?? [] as $leg) {
+                if (!empty($leg['is_long_distance_fraction'])) {
+                    $ldA = true;
+                    break;
+                }
+            }
+            foreach ($b['legs'] ?? [] as $leg) {
+                if (!empty($leg['is_long_distance_fraction'])) {
+                    $ldB = true;
+                    break;
+                }
+            }
+            if ($ldA && !$ldB)
+                return 1;
+            if (!$ldA && $ldB)
+                return -1;
+
+            // Priority 3: Cost
             $costA = $this->totalCostFromEnriched($a);
             $costB = $this->totalCostFromEnriched($b);
             return $costA <=> $costB;
@@ -527,24 +552,30 @@ class RoutePlannerController extends Controller
 
         $coords = [];
         $variations = [];
+
+        // We'll prefer a more robust geometric search on the available polyline
+        // to ensure the path starts and ends exactly at the board/alight stops.
+        $fullPoly = [];
         foreach ($route->variations as $var) {
             $stops = $var->stop_ids ?: [];
-            $sIdx = array_search($fromDir, $stops, true);
-            $eIdx = array_search($toDir, $stops, true);
-            if ($sIdx !== false && $eIdx !== false && $sIdx <= $eIdx) {
-                $segment = array_slice($var->coordinates ?: [], $sIdx, $eIdx - $sIdx + 1);
-                $variations[] = $segment;
-                if (!$coords)
-                    $coords = $segment;
+            if (in_array($fromDir, $stops, true) && in_array($toDir, $stops, true)) {
+                $fullPoly = $var->coordinates ?: [];
+                $variations[] = $fullPoly; // Keep for metadata
+                break;
             }
         }
+        if (!$fullPoly) {
+            $fullPoly = $route->coordinates ?: [];
+        }
 
-        if (!$coords) {
-            $startIdx = null;
+        if ($fullPoly) {
+            $n = count($fullPoly);
+            $startIdx = 0;
             $bestB = INF;
-            $endIdx = null;
+            $endIdx = $n - 1;
             $bestA = INF;
-            foreach ($route->coordinates ?? [] as $i => [$lat, $lng]) {
+
+            foreach ($fullPoly as $i => [$lat, $lng]) {
                 $dB = ($lat - $bLat) ** 2 + ($lng - $bLng) ** 2;
                 if ($dB < $bestB) {
                     $bestB = $dB;
@@ -556,10 +587,23 @@ class RoutePlannerController extends Controller
                     $endIdx = $i;
                 }
             }
-            if ($startIdx !== null && $endIdx !== null && $startIdx <= $endIdx) {
-                $coords = array_slice($route->coordinates ?: [], $startIdx, $endIdx - $startIdx + 1);
+
+            if ($startIdx <= $endIdx) {
+                // Normal forward slice
+                $coords = array_slice($fullPoly, $startIdx, $endIdx - $startIdx + 1);
+            } elseif ($startIdx > $endIdx) {
+                // The polyline is stored in reverse order for this direction.
+                // Reverse the full poly and re-slice.
+                $reversed = array_reverse($fullPoly);
+                $revStart = $n - 1 - $startIdx;
+                $revEnd = $n - 1 - $endIdx;
+                if ($revStart <= $revEnd) {
+                    $coords = array_slice($reversed, $revStart, $revEnd - $revStart + 1);
+                } else {
+                    $coords = $reversed;
+                }
             } else {
-                $coords = $route->coordinates ?: [];
+                $coords = $fullPoly;
             }
         }
 
@@ -617,7 +661,13 @@ class RoutePlannerController extends Controller
             'variations' => $variations,
             'has_variations' => (bool) ($route->has_variations && !empty($variations)),
             'trip' => $trip,
+            'is_long_distance_fraction' => ($totalRouteDistanceKm > 50.0 && ($distanceKm / max($totalRouteDistanceKm, 1)) < 0.20),
         ];
+
+        // Penalize the duration if it's a long distance matatu for a small fraction
+        if ($leg['is_long_distance_fraction']) {
+            $leg['quality_penalty_minutes'] = 120.0; // Heavy penalty to push below city routes
+        }
 
         $duration = $this->busTravelTimeService->estimate(
             [
@@ -791,6 +841,38 @@ class RoutePlannerController extends Controller
             }
         }
         $legs = $merged;
+
+        // NEW: Merge adjacent bus legs of the SAME route if they are separated by a "trivial" walk
+        // (This happens if StationRaptor suggests a transfer at a hub between two stops of the same route)
+        $collapsed = [];
+        foreach ($legs as $leg) {
+            $n = count($collapsed);
+            if ($n >= 2 && $leg['mode'] === 'bus' && $collapsed[$n - 2]['mode'] === 'bus' && $collapsed[$n - 1]['mode'] === 'walk') {
+                $prevBus = $collapsed[$n - 2];
+                $walk = $collapsed[$n - 1];
+                if ($leg['sacco_route_id'] === $prevBus['sacco_route_id']) {
+                    // It's the same route! We should just stay on board.
+                    // We'll replace the three legs (Bus A -> Walk -> Bus A) with a single Bus A leg.
+                    $newLeg = $this->buildBusLeg(
+                        $leg['sacco_route_id'],
+                        $prevBus['board_stop']['stop_id'],
+                        $leg['alight_stop']['stop_id'],
+                        $prevBus['trip'] ?? null,
+                        null,
+                        $departAfter,
+                        $isEventDay
+                    );
+                    if ($newLeg) {
+                        array_splice($collapsed, -2);
+                        $collapsed[] = $newLeg;
+                        continue;
+                    }
+                }
+            }
+            $collapsed[] = $leg;
+        }
+        $legs = $collapsed;
+
         return ['legs' => $legs, 'has_variations' => $hasVariations];
     }
 
