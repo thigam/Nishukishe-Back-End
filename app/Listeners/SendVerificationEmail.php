@@ -56,8 +56,13 @@ class SendVerificationEmail
             $transporter = new \Resend\Transporters\HttpTransporter($client, $baseUri, $headers);
             $resend = new \Resend\Client($transporter);
 
+            $fromAddress = config('mail.from.address');
+            if (str_ends_with($fromAddress, '@moskwito.com')) {
+                $fromAddress = 'no-reply@nishukishe.com';
+            }
+
             $resend->emails->send([
-                'from' => 'Nishukishe <no-reply@moskwito.com>',
+                'from' => config('mail.from.name', 'Nishukishe') . ' <' . $fromAddress . '>',
                 'to' => [$user->email],
                 'subject' => $subjectLine,
                 'html' => view('emails.test', [
