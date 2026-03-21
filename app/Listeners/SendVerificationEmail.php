@@ -19,11 +19,12 @@ class SendVerificationEmail
         //
     }
     /**
-      * Handle the event.
+     * Handle the event.
      */
     public function handle(UserRegistered $event): void
     {
         $user = $event->user;
+        \Log::info('SendVerificationEmail listener triggered for user: ' . $user->email);
         $subjectLine = 'Welcome to Nishukishe';
         $bodyText = 'Thank you for registering with us! Please verify your email address in 5 minutes to complete the registration process.';
         $temporaryUrl = URL::temporarySignedRoute(
@@ -46,8 +47,27 @@ class SendVerificationEmail
         $bodyText .= "\n\nClick here to verify your email: " . $verificationUrl;
 
         // Send a custom welcome or verification confirmation email
+        try {
+            \Log::info('Attempting to send RegistrationEmail to: ' . $user->email);
+            $apiKey = \Resend\ValueObjects\ApiKey::from(env('RESEND_KEY'));
+            $baseUri = \Resend\ValueObjects\Transporter\BaseUri::from('api.resend.com');
+            $headers = \Resend\ValueObjects\Transporter\Headers::withAuthorization($apiKey);
+            $client = new \GuzzleHttp\Client();
+            $transporter = new \Resend\Transporters\HttpTransporter($client, $baseUri, $headers);
+            $resend = new \Resend\Client($transporter);
 
-        Mail::to($user->email)->send(new RegistrationEmail($user, $subjectLine, $bodyText));
-
+            $resend->emails->send([
+                'from' => 'Nishukishe <no-reply@moskwito.com>',
+                'to' => [$user->email],
+                'subject' => $subjectLine,
+                'html' => view('emails.test', [
+                    'subject' => $subjectLine,
+                    'body' => $bodyText,
+                ])->render(),
+            ]);
+            \Log::info('RegistrationEmail sent successfully to: ' . $user->email);
+        } catch (\Exception $e) {
+            \Log::error('Failed to send RegistrationEmail to: ' . $user->email . '. Error: ' . $e->getMessage());
+        }
     }
 }

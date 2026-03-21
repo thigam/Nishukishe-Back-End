@@ -320,6 +320,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8',
             'role' => 'required|string',
+            'sacco_id' => $roleKey === 'sacco_admin' ? 'required|string|exists:saccos,sacco_id' : 'nullable|string',
             'company_name' => $roleKey === UserRole::TEMBEA ? 'required|string|max:255' : 'nullable|string|max:255',
             'public_email' => 'nullable|email',
             'public_phone' => 'nullable|string|max:255',
