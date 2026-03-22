@@ -211,7 +211,7 @@ class SaccoController extends Controller
 
     public function findById(string $id): JsonResponse
     {
-        $sacco = Sacco::with('tier')->where('sacco_id', $id)->first();
+        $sacco = Sacco::with('tier')->resolveByIdOrSlug($id);
         if ($sacco) {
             return response()->json($sacco);
         }

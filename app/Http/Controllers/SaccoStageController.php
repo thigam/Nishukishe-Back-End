@@ -14,7 +14,7 @@ class SaccoStageController extends Controller
 {
     public function index(string $saccoId): JsonResponse
     {
-        $sacco = Sacco::where('sacco_id', $saccoId)->first();
+        $sacco = Sacco::resolveByIdOrSlug($saccoId);
 
         if (!$sacco) {
             return response()->json(['message' => 'Sacco not found'], 404);
@@ -27,8 +27,14 @@ class SaccoStageController extends Controller
 
     public function show(string $saccoId, string $stageId): JsonResponse
     {
+        $sacco = Sacco::resolveByIdOrSlug($saccoId);
+
+        if (!$sacco) {
+            return response()->json(['message' => 'Sacco not found'], 404);
+        }
+
         $stage = SaccoStage::with('sacco:sacco_id,sacco_name')
-            ->where('sacco_id', $saccoId)
+            ->where('sacco_id', $sacco->sacco_id)
             ->where('id', $stageId)
             ->first();
 
@@ -41,7 +47,7 @@ class SaccoStageController extends Controller
 
     public function store(Request $request, string $saccoId): JsonResponse
     {
-        $sacco = Sacco::where('sacco_id', $saccoId)->first();
+        $sacco = Sacco::resolveByIdOrSlug($saccoId);
 
         if (!$sacco) {
             return response()->json(['message' => 'Sacco not found'], 404);
@@ -62,17 +68,17 @@ class SaccoStageController extends Controller
 
     public function update(Request $request, string $saccoId, string $stageId): JsonResponse
     {
-        $stage = SaccoStage::where('sacco_id', $saccoId)
+        $sacco = Sacco::resolveByIdOrSlug($saccoId);
+        if (!$sacco) {
+            return response()->json(['message' => 'Sacco not found'], 404);
+        }
+
+        $stage = SaccoStage::where('sacco_id', $sacco->sacco_id)
             ->where('id', $stageId)
             ->first();
 
         if (!$stage) {
             return response()->json(['message' => 'Stage not found'], 404);
-        }
-
-        $sacco = Sacco::where('sacco_id', $saccoId)->first();
-        if (!$sacco) {
-            return response()->json(['message' => 'Sacco not found'], 404);
         }
 
         $authCheck = $this->ensureUserCanManage($request, $sacco);
@@ -90,17 +96,17 @@ class SaccoStageController extends Controller
 
     public function destroy(Request $request, string $saccoId, string $stageId): JsonResponse
     {
-        $stage = SaccoStage::where('sacco_id', $saccoId)
+        $sacco = Sacco::resolveByIdOrSlug($saccoId);
+        if (!$sacco) {
+            return response()->json(['message' => 'Sacco not found'], 404);
+        }
+
+        $stage = SaccoStage::where('sacco_id', $sacco->sacco_id)
             ->where('id', $stageId)
             ->first();
 
         if (!$stage) {
             return response()->json(['message' => 'Stage not found'], 404);
-        }
-
-        $sacco = Sacco::where('sacco_id', $saccoId)->first();
-        if (!$sacco) {
-            return response()->json(['message' => 'Sacco not found'], 404);
         }
 
         $authCheck = $this->ensureUserCanManage($request, $sacco);

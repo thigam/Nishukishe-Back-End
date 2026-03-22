@@ -98,4 +98,13 @@ class Sacco extends Model
         return $tier && in_array(strtolower($tier->name), ['pro', 'premium']);
     }
 
+    /**
+     * Resolve a sacco by ID or share_slug.
+     */
+    public static function resolveByIdOrSlug(string $identifier): ?self
+    {
+        return self::where('sacco_id', $identifier)
+            ->orWhere('share_slug', $identifier)
+            ->first();
+    }
 }
