@@ -1,0 +1,182 @@
+[
+  {
+    "id": "BS0001",
+    "name": "Bahama Sacco"
+  },
+  {
+    "id": "BT0002",
+    "name": "Bybuss Trans"
+  },
+  {
+    "id": "CH0003",
+    "name": "Citi Hoppa"
+  },
+  {
+    "id": "CS0004",
+    "name": "City Shuttle"
+  },
+  {
+    "id": "HS0005",
+    "name": "Hannover Swift"
+  },
+  {
+    "id": "KB0006",
+    "name": "KBS"
+  },
+  {
+    "id": "KM0007",
+    "name": "Kenya Mpya"
+  },
+  {
+    "id": "LS0008",
+    "name": "Latema Sacco"
+  },
+  {
+    "id": "LS0009",
+    "name": "Likana Sacco"
+  },
+  {
+    "id": "LS0010",
+    "name": "Lina Sacco"
+  },
+  {
+    "id": "LS0011",
+    "name": "Liraline Sacco"
+  },
+  {
+    "id": "LT0012",
+    "name": "Lopha Travels"
+  },
+  {
+    "id": "MS0013",
+    "name": "MCA Sacco"
+  },
+  {
+    "id": "MT0014",
+    "name": "Metro Trans"
+  },
+  {
+    "id": "NW0015",
+    "name": "Nawasuku"
+  },
+  {
+    "id": "NM0016",
+    "name": "NMK"
+  },
+  {
+    "id": "SM0017",
+    "name": "Super Metro"
+  },
+  {
+    "id": "UM0018",
+    "name": "Umoinner"
+  },
+  {
+    "id": "WS0019",
+    "name": "Walokana Sacco"
+  },
+  {
+    "id": "OS0020",
+    "name": "Outer Sacco"
+  },
+  {
+    "id": "KS0021",
+    "name": "Kmoss Sacco"
+  },
+  {
+    "id": "NS0022",
+    "name": "Nema Sacco"
+  },
+  {
+    "id": "LA0023",
+    "name": "LA Trans"
+  },
+  {
+    "id": "HK0024",
+    "name": "Highrise K"
+  },
+  {
+    "id": "KW0025",
+    "name": "2KW Sacco"
+  },
+  {
+    "id": "KS0026",
+    "name": "Kacose Sacco"
+  },
+  {
+    "id": "RS0027",
+    "name": "Runka Sacco"
+  },
+  {
+    "id": "LS0028",
+    "name": "Lopha Sacco"
+  },
+  {
+    "id": "GS0029",
+    "name": "Ganaki Sacco"
+  },
+  {
+    "id": "EM0030",
+    "name": "Embassava"
+  },
+  {
+    "id": "OS0031",
+    "name": "Orokise Sacco"
+  },
+  {
+    "id": "ZS0032",
+    "name": "Zuri Sacco"
+  },
+  {
+    "id": "CT0033",
+    "name": "12C Transport Sacco"
+  },
+  {
+    "id": "MS0034",
+    "name": "MSL"
+  },
+  {
+    "id": "MS0035",
+    "name": "Mwiki Sacco"
+  },
+  {
+    "id": "MS0036",
+    "name": "MNK Sacco"
+  },
+  {
+    "id": "MS0037",
+    "name": "Mwamba Sacco"
+  },
+  {
+    "id": "OS0038",
+    "name": "Oma Sacco"
+  },
+  {
+    "id": "KM0039",
+    "name": "KMO Sacco"
+  },
+  {
+    "id": "NM0040",
+    "name": "NMK Shuttle"
+  },
+  {
+    "id": "SB0041",
+    "name": "Star Bus"
+  },
+  {
+    "id": "DM0042",
+    "name": "Double M"
+  },
+  {
+    "id": "CH0043",
+    "name": "City Hoppa"
+  },
+  {
+    "id": "UT0044",
+    "name": "Utimo"
+  },
+  {
+    "id": "NZ0045",
+    "name": "Nazigi Sacco"
+  }
+]
