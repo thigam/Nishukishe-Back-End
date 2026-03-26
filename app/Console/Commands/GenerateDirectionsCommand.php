@@ -64,6 +64,113 @@ class GenerateDirectionsCommand extends Command
         $this->handle();
     }
 
+    protected function handleCreation()
+    {
+        $this->info("Creating direction pages from routes..." . ($this->option('test') ? " [DRY RUN]" : ""));
+
+        $routes = Route::all();
+        $count = 0;
+
+        foreach ($routes as $route) {
+            $saccoRoute = SaccoRoute::where('route_id', $route->route_id)
+                ->whereNotNull('stop_ids')
+                ->first();
+
+            if (!$saccoRoute) {
+                // Fallback to any sacco route if stop_ids is null everywhere (unlikely but safe)
+                $saccoRoute = SaccoRoute::where('route_id', $route->route_id)->first();
+            }
+
+            if (!$saccoRoute) {
+                continue;
+            }
+
+            $originStopId = null;
+            $destStopId = null;
+
+            // Try stop_ids JSON first
+            $stopIds = $saccoRoute->stop_ids;
+            if (is_string($stopIds)) {
+                $stopIds = json_decode($stopIds, true);
+            }
+
+            if (!empty($stopIds) && is_array($stopIds)) {
+                $originStopId = $stopIds[0];
+                $destStopId = $stopIds[count($stopIds) - 1];
+            } else {
+                // Try coordinates
+                $coords = $saccoRoute->coordinates;
+                if (is_string($coords)) {
+                    $coords = json_decode($coords, true);
+                }
+
+                if (!empty($coords) && is_array($coords)) {
+                    $startCoord = $coords[0];
+                    $endCoord = $coords[count($coords) - 1];
+
+                    $oStop = $this->findNearestStop($startCoord[0], $startCoord[1]);
+                    $dStop = $this->findNearestStop($endCoord[0], $endCoord[1]);
+
+                    if ($oStop) {
+                        $originStopId = $oStop->stop_id;
+                    }
+                    if ($dStop) {
+                        $destStopId = $dStop->stop_id;
+                    }
+                }
+            }
+
+            if ($originStopId && $destStopId) {
+                if ($this->option('test')) {
+                    $this->line("[Test] Would create: {$route->route_start_stop} -> {$route->route_end_stop} (Route ID: {$route->route_id}, Stops: {$originStopId} -> {$destStopId})");
+                } else {
+                    $this->createDirectionPage($route->route_start_stop, $route->route_end_stop, $originStopId, $destStopId);
+                }
+                $count++;
+            }
+        }
+
+        $this->info("Processed {$count} directions from routes.");
+    }
+
+    protected function handleHubs()
+    {
+        $this->info("Creating direction pages from hubs..." . ($this->option('test') ? " [DRY RUN]" : ""));
+
+        $hubs = DB::table('transit_hubs')
+            ->join('stops', 'transit_hubs.stop_id', '=', 'stops.stop_id')
+            ->select('transit_hubs.stop_id', 'stops.stop_name', 'transit_hubs.region_id')
+            ->get()
+            ->groupBy('region_id');
+
+        $count = 0;
+        foreach ($hubs as $regionId => $regionHubs) {
+            $this->info("Processing region: {$regionId} (" . count($regionHubs) . " hubs)");
+
+            // Create pairs within the same region
+            for ($i = 0; $i < count($regionHubs); $i++) {
+                for ($j = 0; $j < count($regionHubs); $j++) {
+                    if ($i === $j) {
+                        continue;
+                    }
+
+                    $hubA = $regionHubs[$i];
+                    $hubB = $regionHubs[$j];
+
+                    if ($this->option('test')) {
+                        $this->line("[Test] Would create hub direction: {$hubA->stop_name} -> {$hubB->stop_name} (Stops: {$hubA->stop_id} -> {$hubB->stop_id})");
+                    } else {
+                        $this->createDirectionPage($hubA->stop_name, $hubB->stop_name, $hubA->stop_id, $hubB->stop_id);
+                    }
+                    $count++;
+                }
+            }
+        }
+
+        $this->info("Created/Updated {$count} directions from hubs.");
+    }
+
+
     protected function handleImportJson()
     {
         $jsonPath = base_path('../frontend/public/content/directions/routes.json');

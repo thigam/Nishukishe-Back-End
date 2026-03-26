@@ -45,6 +45,16 @@ Route::get('/bladeview', function () {
     ]);
 })->name('bladeview');
 
+Route::get('/preview-welcome-email', function () {
+    $user = (object) [
+        'name' => 'John Doe',
+    ];
+    return view('emails.welcome-sacco-manager', [
+        'user' => $user,
+        'loginUrl' => 'https://nishukishe.com/login'
+    ]);
+});
+
 
 Route::options('{any}', function (Request $request) {
     $origin = $request->headers->get('Origin');

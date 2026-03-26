@@ -20,6 +20,7 @@ use App\Http\Controllers\Bookings\ManagerBookableController;
 use App\Http\Controllers\Bookings\PublicBookableController;
 use App\Http\Controllers\Bookings\TicketDownloadController;
 use App\Http\Controllers\Bookings\TicketVerificationController;
+use App\Http\Controllers\SuperAdmin\SaccoManagerApprovalController;
 use App\Http\Controllers\TembeaOperatorController;
 use App\Http\Controllers\PublicTembeaOperatorController;
 use App\Http\Controllers\JengaController;
@@ -319,6 +320,13 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
 
         return response()->json(['message' => 'Permission revoked.']);
     })->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
+
+    Route::prefix('admin/sacco-managers')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_sacco_managers')->group(function () {
+        Route::get('/', [SaccoManagerApprovalController::class, 'index']);
+        Route::post('{user}/approve', [SaccoManagerApprovalController::class, 'approve']);
+        Route::post('{user}/resend-verification', [SaccoManagerApprovalController::class, 'resendVerification']);
+        Route::post('{user}/manual-verify', [SaccoManagerApprovalController::class, 'manualVerify']);
+    });
 
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
