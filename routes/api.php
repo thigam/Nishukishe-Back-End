@@ -108,7 +108,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
 
 
 
-        Route::prefix('v1/blogs')->group(function () {
+        Route::prefix('v1/blogs')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_blogs')->group(function () {
             Route::get('/mine', [BlogPostController::class, 'mine'])
                 ->name('service.blogs.mine');
             Route::post('/', [BlogPostController::class, 'store'])
@@ -168,14 +168,16 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
             ->name('tembea.settlements.request-payout');
 
         // Super Admin Tembea Management
-        Route::post('admin/tembea/operators/placeholder', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'createPlaceholderOperator'])
-            ->name('superadmin.tembea.operators.placeholder');
-        Route::post('admin/tembea/operators/{operator}/email', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'changeOperatorEmail'])
-            ->name('superadmin.tembea.operators.email');
-        Route::get('admin/tembea/operators', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'index'])
-            ->name('superadmin.tembea.operators.index');
-        Route::get('admin/tembea/analytics', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'analytics'])
-            ->name('superadmin.tembea.analytics');
+        Route::prefix('admin/tembea')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_saccos')->group(function () {
+            Route::post('operators/placeholder', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'createPlaceholderOperator'])
+                ->name('superadmin.tembea.operators.placeholder');
+            Route::post('operators/{operator}/email', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'changeOperatorEmail'])
+                ->name('superadmin.tembea.operators.email');
+            Route::get('operators', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'index'])
+                ->name('superadmin.tembea.operators.index');
+            Route::get('analytics', [\App\Http\Controllers\SuperAdmin\SuperAdminTembeaController::class, 'analytics'])
+                ->name('superadmin.tembea.analytics');
+        });
 
         Route::prefix('comments')->group(function () {
             Route::post('{comment}/moderate', [CommentController::class, 'moderate'])
@@ -316,6 +318,10 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
 
         $user = \App\Models\User::where('email', $request->email)->first();
 
+        if ($user->role !== 'nishukishe_service_person') {
+            return response()->json(['message' => 'This user is not a service person.'], 403);
+        }
+
         $user->permissions()->where('permission', $request->permission)->delete();
 
         return response()->json(['message' => 'Permission revoked.']);
@@ -327,6 +333,9 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::post('{user}/resend-verification', [SaccoManagerApprovalController::class, 'resendVerification']);
         Route::post('{user}/manual-verify', [SaccoManagerApprovalController::class, 'manualVerify']);
     });
+
+    Route::get('admin/access-control/service-persons', [SaccoManagerApprovalController::class, 'servicePersons'])
+        ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
 
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');

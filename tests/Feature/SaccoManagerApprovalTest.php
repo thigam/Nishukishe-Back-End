@@ -20,7 +20,8 @@ class SaccoManagerApprovalTest extends TestCase
         $servicePerson->permissions()->create(['permission' => 'manage_sacco_managers']);
 
         $sacco = Sacco::factory()->create(['sacco_id' => 'sacco_1']);
-        $managerUser = User::factory()->create(['role' => UserRole::SACCO]);
+        // Create an unapproved manager so they are visible
+        $managerUser = User::factory()->create(['role' => UserRole::SACCO, 'is_approved' => false]);
         SaccoManager::create(['user_id' => $managerUser->id, 'sacco_id' => 'sacco_1']);
 
         Sanctum::actingAs($servicePerson);
@@ -79,5 +80,51 @@ class SaccoManagerApprovalTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertTrue($managerUser->refresh()->is_verified);
+    }
+
+    public function test_service_person_only_sees_relevant_sacco_managers()
+    {
+        $servicePerson = User::factory()->create(['role' => UserRole::SERVICE_PERSON]);
+        $servicePerson->permissions()->create(['permission' => 'manage_sacco_managers']);
+
+        $sacco = Sacco::factory()->create(['sacco_id' => 'sacco_1']);
+
+        // 1. Pending (unapproved) - should see
+        $pendingUser = User::factory()->create(['role' => UserRole::SACCO, 'is_approved' => false, 'email' => 'pending@example.com']);
+        SaccoManager::create(['user_id' => $pendingUser->id, 'sacco_id' => 'sacco_1']);
+
+        // 2. Unverified - should see
+        $unverifiedUser = User::factory()->create(['role' => UserRole::SACCO, 'is_approved' => true, 'is_verified' => false, 'email' => 'unverified@example.com']);
+        SaccoManager::create(['user_id' => $unverifiedUser->id, 'sacco_id' => 'sacco_1']);
+
+        // 3. Recently verified (<72h) - should see
+        $recentUser = User::factory()->create([
+            'role' => UserRole::SACCO,
+            'is_approved' => true,
+            'is_verified' => true,
+            'email_verified_at' => now()->subHours(10),
+            'email' => 'recent@example.com'
+        ]);
+        SaccoManager::create(['user_id' => $recentUser->id, 'sacco_id' => 'sacco_1']);
+
+        // 4. Old verified (>72h) - should NOT see
+        $oldUser = User::factory()->create([
+            'role' => UserRole::SACCO,
+            'is_approved' => true,
+            'is_verified' => true,
+            'email_verified_at' => now()->subHours(80),
+            'email' => 'old@example.com'
+        ]);
+        SaccoManager::create(['user_id' => $oldUser->id, 'sacco_id' => 'sacco_1']);
+
+        Sanctum::actingAs($servicePerson);
+
+        $response = $this->getJson('/api/admin/sacco-managers');
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['email' => 'pending@example.com']);
+        $response->assertJsonFragment(['email' => 'unverified@example.com']);
+        $response->assertJsonFragment(['email' => 'recent@example.com']);
+        $response->assertJsonMissing(['email' => 'old@example.com']);
     }
 }

@@ -9,11 +9,13 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\UserApprovedEmail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Bus\Queueable;
+use Illuminate\Queue\SerializesModels;
 
 
-class SendApprovalEmail
+class SendApprovalEmail implements ShouldQueue
 {
-    use InteractsWithQueue;
+    use InteractsWithQueue, Queueable, SerializesModels;
 
     public function __construct()
     {

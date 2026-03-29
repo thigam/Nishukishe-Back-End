@@ -10,7 +10,7 @@ use Jenssegers\Agent\Agent;
 use App\Http\Middleware\LogUserActivity;
 
 // Add auth:sanctum so $request->user() + token abilities work
-Route::prefix('pre-clean')->middleware([CorsMiddleware::class, RoleMiddleware::class,'auth:sanctum', LogUserActivity::class])->group(function () {
+Route::prefix('pre-clean')->middleware([CorsMiddleware::class, RoleMiddleware::class, 'auth:sanctum', LogUserActivity::class, \App\Http\Middleware\CheckServiceAccess::class . ':clean_routes'])->group(function () {
     Route::controller(PreCleanSaccoRouteController::class)->group(function () {
         Route::get('routes/duplicate-check', 'checkDuplicatePair')->name('pre-clean.routes.duplicate-check');
         Route::get('routes', 'index')->name('pre-clean.routes.index');
@@ -33,12 +33,12 @@ Route::prefix('pre-clean')->middleware([CorsMiddleware::class, RoleMiddleware::c
 
     Route::controller(PreCleanStopController::class)->middleware([CorsMiddleware::class, 'auth:sanctum', RoleMiddleware::class, LogUserActivity::class])->group(function () {
         Route::get('stops', 'index')->name('pre-clean.stops.index');
-        Route::post('stops','store')->name('pre-clean.stops.store');
-        Route::get('stops/{id}','show')->name('pre-clean.stops.show');
-        Route::put('stops/{id}','update')->name('pre-clean.stops.update');
-        Route::delete('stops/{id}','destroy')->name('pre-clean.stops.destroy');
-        Route::post('stops/{id}/approve','approve')->name('pre-clean.stops.approve');
-        Route::post('stops/{id}/reject','reject')->name('pre-clean.stops.reject');
+        Route::post('stops', 'store')->name('pre-clean.stops.store');
+        Route::get('stops/{id}', 'show')->name('pre-clean.stops.show');
+        Route::put('stops/{id}', 'update')->name('pre-clean.stops.update');
+        Route::delete('stops/{id}', 'destroy')->name('pre-clean.stops.destroy');
+        Route::post('stops/{id}/approve', 'approve')->name('pre-clean.stops.approve');
+        Route::post('stops/{id}/reject', 'reject')->name('pre-clean.stops.reject');
     });
 
     Route::controller(PreCleanVariationController::class)->middleware([CorsMiddleware::class, 'auth:sanctum', RoleMiddleware::class, LogUserActivity::class])->group(function () {

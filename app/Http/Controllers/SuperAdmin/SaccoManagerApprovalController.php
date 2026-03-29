@@ -18,14 +18,19 @@ class SaccoManagerApprovalController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::where('role', UserRole::SACCO)
-            ->with(['tembeaOperatorProfile', 'permissions'])
-            ->with('tembeaOperatorProfile.sacco'); // Assuming SaccoManager relates to Sacco
+        $cutoff = now()->subHours(72);
 
-        // Better join with SaccoManager to get Sacco details
-        $managers = User::where('role', UserRole::SACCO)
+        $managers = User::where('users.role', UserRole::SACCO)
             ->join('sacco_managers', 'users.id', '=', 'sacco_managers.user_id')
             ->join('saccos', 'sacco_managers.sacco_id', '=', 'saccos.sacco_id')
+            ->where(function ($query) use ($cutoff) {
+                $query->where('users.is_approved', false)
+                    ->orWhere('users.is_verified', false)
+                    ->orWhere(function ($sub) use ($cutoff) {
+                        $sub->whereNotNull('users.email_verified_at')
+                            ->where('users.email_verified_at', '>=', $cutoff);
+                    });
+            })
             ->select('users.*', 'saccos.sacco_name', 'saccos.sacco_id as linked_sacco_id')
             ->orderBy('users.created_at', 'desc')
             ->get();
@@ -44,21 +49,14 @@ class SaccoManagerApprovalController extends Controller
 
         $user->is_approved = true;
         $user->is_verified = true;
+        // If not already verified, set verified_at to now for the 72h window
         $user->email_verified_at = $user->email_verified_at ?? now();
-
-        // Generate a temporary password if they don't have one (or just reset it to be safe like AuthController does)
-        $temporaryPassword = Str::random(8);
-        $user->password = Hash::make($temporaryPassword);
         $user->save();
 
         Log::info('Sacco Manager approved via Service UI', ['user_id' => $user->id, 'email' => $user->email]);
 
-        // In a real scenario, we might want to send an email with the temporary password here.
-        // Reusing AuthController's logic if possible or dispatching an event.
-
         return response()->json([
-            'message' => 'Sacco Manager approved successfully.',
-            'temp_password' => $temporaryPassword // Return this so the service person can share it if needed, or send via email
+            'message' => 'Sacco Manager approved successfully.'
         ]);
     }
 
@@ -88,7 +86,18 @@ class SaccoManagerApprovalController extends Controller
         $user->save();
 
         Log::info('User manually verified via Service UI', ['user_id' => $user->id, 'email' => $user->email]);
-
         return response()->json(['message' => 'User email verified manually.']);
+    }
+
+    /**
+     * List all service persons and their permissions
+     */
+    public function servicePersons()
+    {
+        $servicePersons = User::where('role', UserRole::SERVICE_PERSON)
+            ->with('permissions')
+            ->get();
+
+        return response()->json($servicePersons);
     }
 }
