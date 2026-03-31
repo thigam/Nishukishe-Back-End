@@ -131,8 +131,9 @@ class BuildTransferEdges extends Command
         // Phase 3 (Hub Backbone) removed as per new plan.
 
         // ---------------------------------------------------------
-        // Phase 4: Cluster Shortcuts
+        // Phase 4: Cluster Shortcuts (DISABLED)
         // ---------------------------------------------------------
+        /*
         if (in_array(4, $runPhases)) {
             $this->info("Phase 4: Building Cluster Shortcuts...");
             // Pass a simple callback to log progress from inside the function
@@ -144,6 +145,7 @@ class BuildTransferEdges extends Command
             });
             $this->info("Phase 4 Complete. Created $shortcutEdges edges.");
         }
+        */
 
         $totalDB = DB::table('transfer_edges')->count();
         $this->info("Selected Phases Complete. Total Edges in DB: $totalDB");

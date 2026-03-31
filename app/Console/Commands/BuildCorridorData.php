@@ -8,6 +8,7 @@ use App\Models\Stops;
 use App\Models\Directions;
 use App\Models\SaccoRoutes;
 use App\Services\H3Wrapper;
+use App\Models\CustomStationPolygon;
 
 class BuildCorridorData extends Command
 {
@@ -166,21 +167,46 @@ class BuildCorridorData extends Command
     private function buildStations(): array
     {
         $stops = Stops::all(['stop_id', 'stop_lat', 'stop_long']);
+        $customPolys = CustomStationPolygon::all();
         $stations = [];
         $members = [];
+
         foreach ($stops as $s) {
             $lat = (float) $s->stop_lat;
             $lng = (float) $s->stop_long;
-            $res = $this->pointInPoly($lat, $lng, $this->CBD_POLY) ? self::L2_RES_CBD : self::L2_RES_ELSE;
-            $cell = H3Wrapper::latLngToCell($lat, $lng, $res);
-            $sid = "st:$res:$cell";
+
+            // 1. Check custom polygons first (human-defined priority)
+            $matchedSid = null;
+            foreach ($customPolys as $cp) {
+                if ($this->pointInPoly($lat, $lng, $cp->polygon)) {
+                    $matchedSid = $cp->station_id ?: "st:custom:" . $cp->id;
+                    break;
+                }
+            }
+
+            // 2. Fallback to H3 clustering
+            if ($matchedSid) {
+                $sid = $matchedSid;
+                // For custom stations, we still need to assign it to an L1/L0 cell for the graph
+                // We'll use resolution 7/6 as usual based on the point
+                $l1 = H3Wrapper::latLngToCell($lat, $lng, self::L1_RES);
+                $l0 = H3Wrapper::latLngToCell($lat, $lng, self::L0_RES);
+            } else {
+                $res = $this->pointInPoly($lat, $lng, $this->CBD_POLY) ? self::L2_RES_CBD : self::L2_RES_ELSE;
+                $cell = H3Wrapper::latLngToCell($lat, $lng, $res);
+                $sid = "st:$res:$cell";
+                $l1 = H3Wrapper::latLngToCell($lat, $lng, self::L1_RES);
+                $l0 = H3Wrapper::latLngToCell($lat, $lng, self::L0_RES);
+            }
+
             $stations[$sid]['members'][] = (string) $s->stop_id;
             $stations[$sid]['sum'][0] = ($stations[$sid]['sum'][0] ?? 0) + $lat;
             $stations[$sid]['sum'][1] = ($stations[$sid]['sum'][1] ?? 0) + $lng;
             $stations[$sid]['cnt'] = ($stations[$sid]['cnt'] ?? 0) + 1;
-            $stations[$sid]['l1'] = H3Wrapper::latLngToCell($lat, $lng, self::L1_RES);
-            $stations[$sid]['l0'] = H3Wrapper::latLngToCell($lat, $lng, self::L0_RES);
+            $stations[$sid]['l1'] = $l1;
+            $stations[$sid]['l0'] = $l0;
         }
+
         foreach ($stations as $sid => &$sm) {
             $sm['center'] = [$sm['sum'][0] / $sm['cnt'], $sm['sum'][1] / $sm['cnt']];
         }

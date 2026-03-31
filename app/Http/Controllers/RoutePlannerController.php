@@ -170,58 +170,62 @@ class RoutePlannerController extends Controller
         \Log::info("Station Data Loaded.");
 
         $rawPaths = [];
-        $oStop = $originStops->first();
-        $dStop = $destStops->first();
+        \Log::info("Origin seeds: " . $originStops->count() . ", Dest seeds: " . $destStops->count());
 
-        \Log::info("Origin: " . ($oStop['stop_id'] ?? 'NULL') . ", Dest: " . ($dStop['stop_id'] ?? 'NULL'));
+        foreach ($originStops as $oStop) {
+            foreach ($destStops as $dStop) {
+                if ($oStop['stop_id'] === $dStop['stop_id'])
+                    continue;
 
-        if ($oStop && $dStop) {
-            $results = $this->stationRaptor->search($oStop['stop_id'], $dStop['stop_id']);
-            \Log::info("Search Results: " . (isset($results['error']) ? $results['error'] : count($results) . " paths"));
+                $results = $this->stationRaptor->search($oStop['stop_id'], $dStop['stop_id']);
 
-            if (!isset($results['error'])) {
-                foreach ($results as $path) {
-                    // Expand
-                    $detailed = $this->stationRaptor->expandPath($path, $oStop['stop_id'], $dStop['stop_id']);
+                if (!isset($results['error'])) {
+                    foreach ($results as $path) {
+                        // Expand
+                        $detailed = $this->stationRaptor->expandPath($path, $oStop['stop_id'], $dStop['stop_id']);
 
-                    if (empty($detailed))
-                        continue; // Skip failed expansions
+                        if (empty($detailed))
+                            continue; // Skip failed expansions
 
-                    // Convert to Raw Path format
-                    $converted = [];
-                    $converted[] = ['stop_id' => $oStop['stop_id'], 'label' => 'start'];
+                        // Convert to Raw Path format
+                        $converted = [];
+                        $converted[] = ['stop_id' => $oStop['stop_id'], 'label' => 'start'];
 
-                    $lastStop = $oStop['stop_id'];
-                    $valid = true;
+                        $lastStop = $oStop['stop_id'];
+                        $valid = true;
 
-                    foreach ($detailed as $leg) {
-                        if (!$leg['walk_valid']) {
-                            $valid = false;
-                            break;
+                        foreach ($detailed as $leg) {
+                            if (!$leg['walk_valid']) {
+                                $valid = false;
+                                break;
+                            }
+
+                            // Safety check for null stops
+                            if (!$leg['from_stop'] || !$leg['to_stop']) {
+                                $valid = false;
+                                break;
+                            }
+
+                            if ($leg['from_stop'] !== $lastStop) {
+                                // Walk leg
+                                $converted[] = ['stop_id' => $leg['from_stop'], 'label' => 'walk 5 min'];
+                            }
+
+                            // Bus leg
+                            $converted[] = ['stop_id' => $leg['to_stop'], 'label' => 'bus via ' . $leg['route_id']];
+                            $lastStop = $leg['to_stop'];
                         }
 
-                        // Safety check for null stops
-                        if (!$leg['from_stop'] || !$leg['to_stop']) {
-                            $valid = false;
-                            break;
+                        if ($valid) {
+                            // Deduplicate locally by a signature (e.g. sequence of stops/routes)
+                            $sig = json_encode($converted);
+                            $rawPaths[$sig] = $converted;
                         }
-
-                        if ($leg['from_stop'] !== $lastStop) {
-                            // Walk leg
-                            $converted[] = ['stop_id' => $leg['from_stop'], 'label' => 'walk 5 min'];
-                        }
-
-                        // Bus leg
-                        $converted[] = ['stop_id' => $leg['to_stop'], 'label' => 'bus via ' . $leg['route_id']];
-                        $lastStop = $leg['to_stop'];
-                    }
-
-                    if ($valid) {
-                        $rawPaths[] = $converted;
                     }
                 }
             }
         }
+        $rawPaths = array_values($rawPaths);
         \Log::info("Raw Paths Constructed: " . count($rawPaths));
 
         /*

@@ -26,6 +26,7 @@ use App\Http\Controllers\PublicTembeaOperatorController;
 use App\Http\Controllers\JengaController;
 use App\Http\Controllers\CommentController;
 use App\Services\DashboardService;
+use App\Http\Controllers\ProductWaitlistController;
 use Jenssegers\Agent\Agent;
 use App\Http\Controllers\HealthStatusController;
 use App\Http\Middleware\LogUserActivity;
@@ -357,6 +358,11 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::post('emails/send', [\App\Http\Controllers\EmailController::class, 'store']);
         Route::apiResource('email-templates', \App\Http\Controllers\EmailTemplateController::class);
     });
+
+    // Waitlist System
+    Route::post('waitlist', [ProductWaitlistController::class, 'store']);
+    Route::get('admin/waitlist', [ProductWaitlistController::class, 'index'])
+        ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
 });
 
 
