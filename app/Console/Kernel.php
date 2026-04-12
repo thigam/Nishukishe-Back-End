@@ -21,6 +21,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\BuildCorridorData::class,
         RunAutomatedTests::class,
         SocialIngestCommand::class,
+        \App\Console\Commands\SendDailySummaryEmail::class,
     ];
 
     /**
@@ -30,6 +31,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('tests:run')->dailyAt('00:00');
         $schedule->command('backup:run --only-db')->weeklyOn(1, '02:00');
+        $schedule->command('emails:send-daily-summary')->dailyAt('23:59');
     }
 
     /**
@@ -37,7 +39,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }

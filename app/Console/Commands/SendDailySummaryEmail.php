@@ -1,0 +1,124 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use App\Models\SearchLog;
+use App\Models\ActivityLog;
+use App\Models\Incident;
+use App\Models\User;
+use App\Models\UserRole;
+use App\Models\SaccoRoute;
+use App\Models\Sacco;
+use App\Models\VehicleLiveLocation;
+use App\Mail\AdminDailySummaryEmail;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+
+class SendDailySummaryEmail extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'emails:send-daily-summary';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Send daily summary metrics email to the super admin.';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+        $today = today();
+
+        // 1. Number of searches today
+        $searches = SearchLog::whereDate('created_at', $today)->count();
+
+        // 2. Unique visitors today
+        $uniqueVisitors = ActivityLog::whereDate('started_at', $today)
+            ->whereNotNull('session_id')
+            ->distinct('session_id')
+            ->count('session_id');
+
+        // 3. Incidents reported today
+        $incidents = Incident::whereDate('created_at', $today)->count();
+
+        // 4. Signups (Grouped)
+        $signups = User::whereDate('created_at', $today)->get()->groupBy('role');
+        $commuters = optional($signups->get(UserRole::USER))->count() ?? 0;
+        $saccoMgrs = optional($signups->get(UserRole::SACCO))->count() ?? 0;
+        $servicePersons = optional($signups->get(UserRole::SERVICE_PERSON))->count() ?? 0;
+        $others = $signups->flatten()->count() - ($commuters + $saccoMgrs + $servicePersons);
+
+        // 5. & 6. Signed In Today (Using ActivityLog joined with User)
+        // ActivityLog models have `user_id`. We filter 'started_at' today.
+        $activityLogs = ActivityLog::with('user')->whereDate('started_at', $today)->get();
+
+        $managersLoggedIn = $activityLogs->filter(function ($log) {
+            return $log->user && $log->user->role === UserRole::SACCO;
+        })->unique('user_id')->count();
+
+        $servicePersonsLoggedIn = $activityLogs->filter(function ($log) {
+            return $log->user && $log->user->role === UserRole::SERVICE_PERSON;
+        })->unique('user_id')->count();
+
+        // 7. Sacco routes created today
+        $routesCreated = SaccoRoute::whereDate('created_at', $today)->count();
+
+        // 8. Super admin accesses
+        // Assuming super admin paths start with 'superadmin' or contain 'admin'
+        $superAdminActivity = [];
+        foreach ($activityLogs as $log) {
+            $urls = $log->urls_visited ?? [];
+            foreach ($urls as $url) {
+                if (\Str::contains($url, 'superadmin') || \Str::contains($url, '/api/super-admin/')) {
+                    $userName = $log->user ? $log->user->name : "User {$log->user_id}";
+                    $superAdminActivity[] = [
+                        'user' => $userName,
+                        'url' => $url,
+                    ];
+                }
+            }
+        }
+        $superAdminActivity = collect($superAdminActivity)->unique(function ($item) {
+            return $item['user'] . $item['url'];
+        })->values()->all();
+
+        // 9. Additional Metrics
+        $activeVehicles = VehicleLiveLocation::whereDate('updated_at', $today)
+            ->distinct('vehicle_id')
+            ->count('vehicle_id');
+
+        $newSaccos = Sacco::whereDate('created_at', $today)->count();
+
+        $stats = [
+            'searches' => $searches,
+            'unique_visitors' => $uniqueVisitors,
+            'incidents' => $incidents,
+            'signups' => [
+                'commuters' => $commuters,
+                'sacco_managers' => $saccoMgrs,
+                'service_persons' => $servicePersons,
+                'others' => $others,
+            ],
+            'managers_logged_in' => $managersLoggedIn,
+            'service_persons_logged_in' => $servicePersonsLoggedIn,
+            'routes_created' => $routesCreated,
+            'super_admin_activity' => $superAdminActivity,
+            'active_vehicles' => $activeVehicles,
+            'new_saccos' => $newSaccos,
+        ];
+
+        Mail::to('thigamatthew7@gmail.com')->send(new AdminDailySummaryEmail($stats));
+
+        $this->info('Daily summary email sent successfully.');
+        Log::info('Daily summary email sent successfully with stats:', $stats);
+    }
+}

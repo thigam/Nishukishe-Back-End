@@ -14,7 +14,7 @@ class ProductWaitlistController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'sacco_id' => 'required|exists:saccos,id',
+            'sacco_id' => 'required|exists:saccos,sacco_id',
             'product_slug' => 'required|string|max:255',
             'contact_name' => 'nullable|string|max:255',
             'contact_phone' => 'nullable|string|max:255',

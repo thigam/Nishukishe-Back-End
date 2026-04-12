@@ -12,6 +12,8 @@ use App\Http\Middleware\CorsMiddleware;
 use Illuminate\Http\Request;
 use App\Http\Controllers\SaccoManagerController;
 use App\Http\Controllers\DriverLocationController;
+use App\Http\Controllers\VehicleLiveLocationController;
+use App\Http\Controllers\OwnerInvitationController;
 use App\Http\Controllers\ParcelServicePersonController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\ParcelController;
@@ -32,6 +34,7 @@ use App\Http\Controllers\HealthStatusController;
 use App\Http\Middleware\LogUserActivity;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Controllers\ClientErrorController;
+use App\Http\Controllers\PasswordResetController;
 require __DIR__ . '/mpesa.php';
 
 
@@ -206,6 +209,20 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
             Route::get('/available-routes', [App\Http\Controllers\DriverController::class, 'getAvailableRoutes']);
         });
 
+        // Tracking Routes (Commuter Facing)
+        Route::prefix('tracking')->group(function () {
+            Route::get('/vehicles', [VehicleLiveLocationController::class, 'index']);
+            Route::post('/incident', [App\Http\Controllers\DriverLocationController::class, 'reportIncident']); // I'll add this method
+            Route::get('/fleet/sacco', [App\Http\Controllers\VehicleController::class, 'getSaccoFleet']);
+            Route::get('/fleet/owner', [App\Http\Controllers\VehicleController::class, 'getOwnerFleet']);
+        });
+
+        // Invitation Routes
+        Route::prefix('invitations')->group(function () {
+            Route::post('/owner', [OwnerInvitationController::class, 'inviteOwner']);
+            Route::post('/driver', [OwnerInvitationController::class, 'inviteDriver']);
+        });
+
     });
 
 Route::middleware([CorsMiddleware::class, LogUserActivity::class])->group(function () {
@@ -248,8 +265,29 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->group(functi
 
 
 
-    Route::apiResource('parcels', \App\Http\Controllers\ParcelController::class)->middleware('auth:sanctum');
-    Route::patch('parcels/{parcel}/status', [\App\Http\Controllers\ParcelController::class, 'updateStatus'])->middleware('auth:sanctum');
+
+    // Parcel Management (requires Sacco Premium tier)
+    Route::middleware(\App\Http\Middleware\EnsureParcelFeatureActive::class)->group(function () {
+        // Agent Onboarding & Management
+        Route::post('sacco-admin/parcel-agents/invite', [\App\Http\Controllers\AgentInvitationController::class, 'invite']);
+        Route::get('sacco-admin/{saccoId}/parcel-agents', [\App\Http\Controllers\ParcelAgentController::class, 'index']);
+        Route::get('sacco-admin/{saccoId}/parcel-agents/assigned-depots', [\App\Http\Controllers\ParcelAgentController::class, 'assignedDepots']);
+        Route::post('sacco-admin/{saccoId}/parcel-agents/{agentId}/approve', [\App\Http\Controllers\ParcelAgentController::class, 'approve']);
+        Route::put('sacco-admin/{saccoId}/parcel-agents/{agentId}/permissions', [\App\Http\Controllers\ParcelAgentController::class, 'updatePermissions']);
+
+        // Depot Management
+        Route::get('sacco/{saccoId}/depots', [\App\Http\Controllers\ParcelDepotController::class, 'index']);
+        Route::post('sacco/{saccoId}/depots', [\App\Http\Controllers\ParcelDepotController::class, 'store']);
+        Route::put('sacco/{saccoId}/depots/{depot}', [\App\Http\Controllers\ParcelDepotController::class, 'update']);
+        Route::delete('sacco/{saccoId}/depots/{depot}', [\App\Http\Controllers\ParcelDepotController::class, 'destroy']);
+        Route::post('sacco/{saccoId}/depots/{depot}/agents/assign', [\App\Http\Controllers\ParcelDepotController::class, 'assignAgent']);
+        Route::delete('sacco/{saccoId}/depots/{depot}/agents/remove', [\App\Http\Controllers\ParcelDepotController::class, 'removeAgent']);
+
+        // Parcel Operations
+        Route::apiResource('parcels', \App\Http\Controllers\ParcelController::class);
+        Route::patch('parcels/{parcel}/status', [\App\Http\Controllers\ParcelController::class, 'updateStatus']);
+        Route::post('parcels/{parcel}/deliver', [\App\Http\Controllers\ParcelController::class, 'deliver']);
+    });
 });
 
 Route::prefix('v2/blogs')->group(function () {
@@ -285,6 +323,9 @@ Route::post('analytics/tembezi', function (Request $request) {
 })->middleware([CorsMiddleware::class, LogUserActivity::class]);
 
 
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/invitations/signup/{token}', [App\Http\Controllers\OwnerInvitationController::class, 'signup']);
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLinkEmail']);
 Route::post('/client-error-logs', [ClientErrorController::class, 'store']);
 Route::get('/client-error-logs', [ClientErrorController::class, 'index'])
     ->middleware([\App\Http\Middleware\RoleMiddleware::class . ':super_admin']);
@@ -359,15 +400,28 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::apiResource('email-templates', \App\Http\Controllers\EmailTemplateController::class);
     });
 
-    // Waitlist System
-    Route::post('waitlist', [ProductWaitlistController::class, 'store']);
-    Route::get('admin/waitlist', [ProductWaitlistController::class, 'index'])
-        ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
 });
 
 
+// Agent Signup (Public)
+Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function () {
+    Route::get('agent-signup/verify/{token}', [\App\Http\Controllers\AgentInvitationController::class, 'verify']);
+    Route::post('agent-signup/{token}', [\App\Http\Controllers\AgentInvitationController::class, 'signup']);
+});
+
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);
+
+// Commuter Occurrences
+Route::prefix('occurrences')->group(function () {
+    Route::get('/', [\App\Http\Controllers\CommuterOccurrenceController::class, 'index']);
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/', [\App\Http\Controllers\CommuterOccurrenceController::class, 'store']);
+        Route::post('/{incident}/upvote', [\App\Http\Controllers\CommuterOccurrenceController::class, 'upvote']);
+        Route::post('/{incident}/downvote', [\App\Http\Controllers\CommuterOccurrenceController::class, 'downvote']);
+    });
+});
 
 Route::get('/seo-links', [\App\Http\Controllers\SeoLinksController::class, 'index']);
 

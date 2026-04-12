@@ -118,22 +118,57 @@ class RunBenchmarkSearches extends Command
 
     private function estimateDuration(array $detailed): float
     {
-        $total = 0;
+        $totalMinutes = 0;
         foreach ($detailed as $leg) {
-            $trip = DB::table('trips')->where('route_id', $leg['route_id'])->first();
-            if ($trip) {
-                $st1 = DB::table('stop_times')->where('trip_id', $trip->trip_id)->where('stop_id', $leg['from_stop'])->first();
-                $st2 = DB::table('stop_times')->where('trip_id', $trip->trip_id)->where('stop_id', $leg['to_stop'])->first();
-                if ($st1 && $st2) {
-                    $t1 = strtotime($st1->departure_time);
-                    $t2 = strtotime($st2->arrival_time);
-                    if ($t2 < $t1)
-                        $t2 += 24 * 3600;
-                    $total += ($t2 - $t1) / 60;
+            $legDuration = 0;
+            // 1. Try to find a trip with stop_times
+            $trip = DB::table('trips')->where('sacco_route_id', $leg['route_id'])->first();
+            if ($trip && $trip->stop_times) {
+                $st = json_decode($trip->stop_times, true);
+                if (is_array($st)) {
+                    $t1 = null;
+                    $t2 = null;
+                    foreach ($st as $item) {
+                        if ($item['stop_id'] === $leg['from_stop'])
+                            $t1 = $item['time'];
+                        if ($item['stop_id'] === $leg['to_stop'])
+                            $t2 = $item['time'];
+                    }
+                    if ($t1 && $t2 && $t1 !== '00:00' && $t2 !== '00:00') {
+                        $v1 = strtotime($t1);
+                        $v2 = strtotime($t2);
+                        if ($v2 < $v1)
+                            $v2 += 24 * 3600;
+                        $legDuration = ($v2 - $v1) / 60;
+                    }
                 }
             }
+
+            // 2. Fallback: Calculation based on distance if duration is 0 or no trip found
+            if ($legDuration <= 0) {
+                $s1 = DB::table('stops')->where('stop_id', $leg['from_stop'])->first();
+                $s2 = DB::table('stops')->where('stop_id', $leg['to_stop'])->first();
+                if ($s1 && $s2) {
+                    $dist = $this->haversine($s1->stop_lat, $s1->stop_long, $s2->stop_lat, $s2->stop_long);
+                    // Assume 40km/h average for bus/matatu including stops
+                    $legDuration = ($dist / 40) * 60;
+                }
+            }
+            $totalMinutes += $legDuration;
         }
-        return $total;
+        return $totalMinutes;
+    }
+
+    private function haversine($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371; // km
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return $earthRadius * $c;
     }
 
     private function getBenchmarks(): array
@@ -180,7 +215,7 @@ class RunBenchmarkSearches extends Command
             ->values();
     }
 
-    private function nearestStops($lat, $lng, $count = 3, $maxK = 6)
+    private function nearestStops($lat, $lng, $count = 3, $maxK = 10)
     {
         $index = H3Wrapper::latLngToCell($lat, $lng, 9);
         $expr = '(6371000 * acos(cos(radians(?)) * cos(radians(direction_latitude)) * ' .
@@ -202,6 +237,27 @@ class RunBenchmarkSearches extends Command
                 ->unique(fn($d) => $d->stop->stop_id)
                 ->sortBy('distance')
                 ->take($count);
+        }
+
+        if ($picked->isEmpty()) {
+            // Fallback: Search stops table directly using a bounding box if no directions found
+            $range = 0.05; // ~5km
+            $exprStop = '(6371000 * acos(cos(radians(?)) * cos(radians(stop_lat)) * ' .
+                'cos(radians(stop_long) - radians(?)) + sin(radians(?)) * ' .
+                'sin(radians(stop_lat))))';
+
+            $rows = DB::table('stops')
+                ->whereBetween('stop_lat', [$lat - $range, $lat + $range])
+                ->whereBetween('stop_long', [$lng - $range, $lng + $range])
+                ->selectRaw("*, {$exprStop} AS distance", [$lat, $lng, $lat])
+                ->orderBy('distance')
+                ->limit($count)
+                ->get();
+
+            return $rows->map(fn($s) => [
+                'stop_id' => $s->stop_id,
+                'stop_name' => $s->stop_name,
+            ]);
         }
 
         return $picked->map(fn($d) => [

@@ -85,6 +85,21 @@ class Sacco extends Model
         return $this->hasMany(Parcel::class, 'sacco_id', 'sacco_id');
     }
 
+    public function parcelAgents(): HasMany
+    {
+        return $this->hasMany(ParcelAgent::class, 'sacco_id', 'sacco_id');
+    }
+
+    public function agentInvitations(): HasMany
+    {
+        return $this->hasMany(AgentInvitation::class, 'sacco_id', 'sacco_id');
+    }
+
+    public function parcelDepots(): HasMany
+    {
+        return $this->hasMany(ParcelDepot::class, 'sacco_id', 'sacco_id');
+    }
+
     public function hasParcelFeature(): bool
     {
         // Assuming 'Pro' and 'Premium' tiers have IDs or names we can check.

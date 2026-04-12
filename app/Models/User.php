@@ -70,4 +70,14 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(UserPermission::class);
     }
 
+    public function parcelAgents(): HasMany
+    {
+        return $this->hasMany(ParcelAgent::class);
+    }
+
+    public function agentInvitations(): HasMany
+    {
+        return $this->hasMany(AgentInvitation::class, 'invited_by');
+    }
+
 }

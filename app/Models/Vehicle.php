@@ -12,6 +12,11 @@ class Vehicle extends Model
         'registration_number',
         'driver_id',
         'route_id',
+        'share_location_with_sacco',
+    ];
+
+    protected $casts = [
+        'share_location_with_sacco' => 'boolean',
     ];
 
     public function owner()
@@ -22,6 +27,11 @@ class Vehicle extends Model
     public function driver()
     {
         return $this->belongsTo(User::class, 'driver_id');
+    }
+
+    public function ownerProfile()
+    {
+        return $this->hasOne(VehicleOwnerProfile::class, 'user_id', 'owner_id');
     }
 
     public function route()

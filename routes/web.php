@@ -21,6 +21,8 @@ require __DIR__ . '/PostCleanRoutes.php';
 require __DIR__ . '/mail.php';
 require __DIR__ . '/VariationRoutes.php';
 require __DIR__ . '/superadmin.php';
+require __DIR__ . '/WaitlistRoutes.php';
+
 
 Route::get('admin/search-analytics', [\App\Http\Controllers\SearchAnalyticsController::class, 'index']);
 

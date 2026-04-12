@@ -14,4 +14,5 @@ class UserRole
     const SACCO = 'sacco_admin';
     const GOVERNMENT = 'government_official';
     const TEMBEA = 'tembea_admin';
+    const PARCEL_AGENT = 'parcel_agent';
 }

@@ -12,6 +12,7 @@ use App\Events\PasswordResetLinkSent;
 use App\Listeners\SendVerificationEmail;
 use App\Listeners\SendApprovalEmail;
 use App\Listeners\PasswordResetListener;
+use App\Listeners\SendCommuterWelcomeEmail;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -23,6 +24,7 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         UserRegistered::class => [
             SendVerificationEmail::class,
+            SendCommuterWelcomeEmail::class,
         ],
         PasswordResetLinkSent::class => [
             PasswordResetListener::class,
@@ -41,6 +43,7 @@ class EventServiceProvider extends ServiceProvider
 
         // Example of dynamic registration
         Event::listen(UserRegistered::class, [SendVerificationEmail::class, 'handle']);
+        Event::listen(UserRegistered::class, [SendCommuterWelcomeEmail::class, 'handle']);
         Event::listen(UserApproved::class, [SendApprovalEmail::class, 'handle']);
         Event::listen(PasswordResetLinkSent::class, [PasswordResetListener::class, 'handle']);
     }

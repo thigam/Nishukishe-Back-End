@@ -103,6 +103,7 @@ class AuthController extends Controller
                 UserRole::SACCO => ['commuter.dashboard', 'sacco_admin.dashboard'],
                 UserRole::VEHICLE_OWNER => ['commuter.dashboard', 'vehicle_owner.dashboard'],
                 UserRole::USER => ['commuter.dashboard', 'stops.index', 'stops.search'],
+                UserRole::PARCEL_AGENT => ['commuter.dashboard', 'parcel_agent.dashboard'],
                 default => [],
             };
 
@@ -521,6 +522,7 @@ class AuthController extends Controller
             UserRole::VEHICLE_OWNER => UserRole::VEHICLE_OWNER,
             UserRole::GOVERNMENT => UserRole::GOVERNMENT,
             UserRole::TEMBEA => UserRole::TEMBEA,
+            UserRole::PARCEL_AGENT => UserRole::PARCEL_AGENT,
             default => null,
         };
     }

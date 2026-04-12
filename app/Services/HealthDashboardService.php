@@ -15,45 +15,38 @@ class HealthDashboardService
      * @var array<string, array<string, mixed>>
      */
     public const AREA_DEFINITIONS = [
-        'trip_planning' => [
-            'name' => 'Trip Planning & Search',
+        'commuter_flow' => [
+            'name' => 'Commuter Experience',
             'suite_names' => [],
-            'suite_name_contains' => ['Route', 'Search', 'Stop', 'Directions'],
+            'suite_name_contains' => ['Route', 'Search', 'Stop', 'Directions', 'Booking', 'Payment', 'Fare', 'Checkout', 'Ticket', 'Auth', 'PageLoad', 'Comment', 'Public', 'Fallback'],
             'report_contains' => [],
             'log_names' => [],
         ],
-        'booking_flow' => [
-            'name' => 'Booking & Payments',
+        'sacco_manager_flow' => [
+            'name' => 'Sacco Manager Operations',
             'suite_names' => [],
-            'suite_name_contains' => ['Booking', 'Payment', 'Fare', 'Checkout'],
+            'suite_name_contains' => ['Sacco', 'Tembea', 'Operator', 'Fleet', 'Manager'],
             'report_contains' => [],
             'log_names' => [],
         ],
-        'sacco_portal' => [
-            'name' => 'Sacco Operations',
+        'driver_flow' => [
+            'name' => 'Driver Experience',
             'suite_names' => [],
-            'suite_name_contains' => ['Sacco', 'Tembea', 'Operator', 'Fleet'],
+            'suite_name_contains' => ['Driver', 'Vehicle'],
             'report_contains' => [],
             'log_names' => [],
         ],
-        'admin_panel' => [
-            'name' => 'Admin Control Panel',
+        'superadmin_flow' => [
+            'name' => 'Super Admin Portal',
             'suite_names' => [],
-            'suite_name_contains' => ['Admin', 'Analytics', 'Logs', 'Health'],
+            'suite_name_contains' => ['Admin', 'Analytics', 'Logs', 'Health', 'Dashboard', 'Blog', 'Scalping'],
             'report_contains' => [],
             'log_names' => [],
         ],
-        'content_delivery' => [
-            'name' => 'Content & Blogs',
+        'system_core' => [
+            'name' => 'Core Architecture',
             'suite_names' => [],
-            'suite_name_contains' => ['Blog', 'Comment', 'PageLoad'],
-            'report_contains' => [],
-            'log_names' => [],
-        ],
-        'system_integrity' => [
-            'name' => 'System Integrity',
-            'suite_names' => [],
-            'suite_name_contains' => ['Unit', 'General', 'Example', 'Security'],
+            'suite_name_contains' => ['Unit', 'General', 'Example', 'Security', 'Persistence', 'Model', 'Job', 'Generator'],
             'report_contains' => [],
             'log_names' => [],
         ],
