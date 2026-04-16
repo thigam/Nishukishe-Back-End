@@ -82,11 +82,14 @@ class SendDailySummaryEmail extends Command
         foreach ($activityLogs as $log) {
             $urls = $log->urls_visited ?? [];
             foreach ($urls as $url) {
-                if (\Str::contains($url, 'superadmin') || \Str::contains($url, '/api/super-admin/')) {
+                // Handle both simple string path and complex array format
+                $urlStr = is_array($url) ? ($url['path'] ?? '') : (string) $url;
+
+                if (\Str::contains($urlStr, 'superadmin') || \Str::contains($urlStr, '/api/super-admin/')) {
                     $userName = $log->user ? $log->user->name : "User {$log->user_id}";
                     $superAdminActivity[] = [
                         'user' => $userName,
-                        'url' => $url,
+                        'url' => $urlStr,
                     ];
                 }
             }
