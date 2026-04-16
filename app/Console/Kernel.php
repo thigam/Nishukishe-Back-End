@@ -29,8 +29,6 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('tests:run')->dailyAt('00:00');
-        $schedule->command('backup:run --only-db')->weeklyOn(1, '02:00');
         $schedule->command('emails:send-daily-summary')->dailyAt('23:59');
     }
 

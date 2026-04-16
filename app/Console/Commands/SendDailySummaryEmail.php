@@ -14,6 +14,7 @@ use App\Models\VehicleLiveLocation;
 use App\Mail\AdminDailySummaryEmail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SendDailySummaryEmail extends Command
 {
@@ -70,7 +71,10 @@ class SendDailySummaryEmail extends Command
         })->unique('user_id')->count();
 
         // 7. Sacco routes created today
-        $routesCreated = SaccoRoute::whereDate('created_at', $today)->count();
+        $routesCreated = 0;
+        if (Schema::hasColumn('sacco_routes', 'created_at')) {
+            $routesCreated = SaccoRoute::whereDate('created_at', $today)->count();
+        }
 
         // 8. Super admin accesses
         // Assuming super admin paths start with 'superadmin' or contain 'admin'
@@ -92,11 +96,11 @@ class SendDailySummaryEmail extends Command
         })->values()->all();
 
         // 9. Additional Metrics
-        $activeVehicles = VehicleLiveLocation::whereDate('updated_at', $today)
+        $activeVehicles = VehicleLiveLocation::whereDate('recorded_at', $today)
             ->distinct('vehicle_id')
             ->count('vehicle_id');
 
-        $newSaccos = Sacco::whereDate('created_at', $today)->count();
+        $newSaccos = Sacco::whereDate('join_date', $today)->count();
 
         $stats = [
             'searches' => $searches,

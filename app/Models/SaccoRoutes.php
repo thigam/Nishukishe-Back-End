@@ -7,9 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class SaccoRoutes extends Model
 {
     public $incrementing = false;
-    public $timestamps    = false;
     protected $primaryKey = 'sacco_route_id';
-    protected $keyType    = 'string';
+    protected $keyType = 'string';
 
     protected $fillable = [
         'sacco_route_id',
@@ -17,7 +16,7 @@ class SaccoRoutes extends Model
         'sacco_id',
         'stop_ids',
         'coordinates',
-       // 'route_stop_times',
+        // 'route_stop_times',
         'peak_fare',
         'off_peak_fare',
         'currency',
@@ -26,13 +25,13 @@ class SaccoRoutes extends Model
     ];
 
     protected $casts = [
-        'coordinates'      => 'array',
-        'stop_ids'         => 'array',
-       // 'route_stop_times' => 'json',
-        'peak_fare'       => 'float',
-        'off_peak_fare'       => 'float',
-        'scheduled'       => 'boolean',
-        'has_variations'  => 'boolean',
+        'coordinates' => 'array',
+        'stop_ids' => 'array',
+        // 'route_stop_times' => 'json',
+        'peak_fare' => 'float',
+        'off_peak_fare' => 'float',
+        'scheduled' => 'boolean',
+        'has_variations' => 'boolean',
     ];
 
     public static function generateSaccoRouteId(string $saccoId, string $routeId): string
