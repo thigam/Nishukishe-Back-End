@@ -29,6 +29,7 @@ class CommuterWelcomeEmail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
+            from: 'commuters@nishukishe.com',
             subject: 'Commuter Welcome Email',
         );
     }

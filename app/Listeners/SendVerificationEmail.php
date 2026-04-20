@@ -56,27 +56,7 @@ class SendVerificationEmail
         // Send a custom welcome or verification confirmation email
         try {
             \Log::info('Attempting to send RegistrationEmail to: ' . $user->email);
-            $apiKey = \Resend\ValueObjects\ApiKey::from(env('RESEND_KEY'));
-            $baseUri = \Resend\ValueObjects\Transporter\BaseUri::from('api.resend.com');
-            $headers = \Resend\ValueObjects\Transporter\Headers::withAuthorization($apiKey);
-            $client = new \GuzzleHttp\Client();
-            $transporter = new \Resend\Transporters\HttpTransporter($client, $baseUri, $headers);
-            $resend = new \Resend\Client($transporter);
-
-            $fromAddress = config('mail.from.address');
-            if (str_ends_with($fromAddress, '@moskwito.com')) {
-                $fromAddress = 'no-reply@nishukishe.com';
-            }
-
-            $resend->emails->send([
-                'from' => config('mail.from.name', 'Nishukishe') . ' <' . $fromAddress . '>',
-                'to' => [$user->email],
-                'subject' => $subjectLine,
-                'html' => view('emails.test', [
-                    'subject' => $subjectLine,
-                    'body' => $bodyText,
-                ])->render(),
-            ]);
+            Mail::to($user->email)->send(new RegistrationEmail($user, $subjectLine, $bodyText));
             \Log::info('RegistrationEmail sent successfully to: ' . $user->email);
         } catch (\Exception $e) {
             \Log::error('Failed to send RegistrationEmail to: ' . $user->email . '. Error: ' . $e->getMessage());

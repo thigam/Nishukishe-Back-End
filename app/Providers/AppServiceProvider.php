@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use Symfony\Component\HttpFoundation\Cookie as SymfonyCookie;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\Transports\ResendTransport;
+use Resend;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -54,6 +57,13 @@ class AppServiceProvider extends ServiceProvider
     {
         Cookie::macro('create', function ($name, $value = null, $minutes = 0, $path = null, $domain = null, $secure = true, $httpOnly = true, $sameSite = 'None') {
             return new SymfonyCookie($name, $value, $minutes, $path, $domain, $secure, $httpOnly, false, $sameSite);
+        });
+
+        // Register custom Resend transport
+        Mail::extend('resend', function (array $config) {
+            return new ResendTransport(
+                Resend::client(config('services.resend.key'))
+            );
         });
     }
 }
