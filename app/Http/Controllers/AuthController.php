@@ -567,6 +567,9 @@ class AuthController extends Controller
                     'sacco_id' => $saccoId,
                 ]);
             }
+
+            // Dispatch registration event (triggers welcome email)
+            event(new UserRegistered($user));
         } else {
             if (!$user->google_id) {
                 $user->google_id = $googleUser->getId();

@@ -40,11 +40,5 @@ class EventServiceProvider extends ServiceProvider
     public function boot(): void
     {
         parent::boot();
-
-        // Example of dynamic registration
-        Event::listen(UserRegistered::class, [SendVerificationEmail::class, 'handle']);
-        Event::listen(UserRegistered::class, [SendCommuterWelcomeEmail::class, 'handle']);
-        Event::listen(UserApproved::class, [SendApprovalEmail::class, 'handle']);
-        Event::listen(PasswordResetLinkSent::class, [PasswordResetListener::class, 'handle']);
     }
 }

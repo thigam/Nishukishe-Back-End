@@ -24,6 +24,13 @@ class SendVerificationEmail
     public function handle(UserRegistered $event): void
     {
         $user = $event->user;
+
+        // Skip if user is already verified (e.g. Google signups)
+        if ($user->is_verified) {
+            \Log::info('Skipping verification email as user is already verified: ' . $user->email);
+            return;
+        }
+
         \Log::info('SendVerificationEmail listener triggered for user: ' . $user->email);
         $subjectLine = 'Welcome to Nishukishe';
         $bodyText = 'Thank you for registering with us! Please verify your email address in 5 minutes to complete the registration process.';
