@@ -11,6 +11,7 @@ use App\Models\UserRole;
 use App\Models\SaccoRoute;
 use App\Models\Sacco;
 use App\Models\VehicleLiveLocation;
+use App\Models\Email;
 use App\Mail\AdminDailySummaryEmail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -105,6 +106,43 @@ class SendDailySummaryEmail extends Command
 
         $newSaccos = Sacco::whereDate('join_date', $today)->count();
 
+        // 10. Emails received today per nishukishe address
+        $receivedEmailsCount = Email::where('type', 'incoming')
+            ->whereDate('created_at', $today)
+            ->select('recipient_email', \DB::raw('count(*) as count'))
+            ->groupBy('recipient_email')
+            ->orderBy('count', 'desc')
+            ->get()
+            ->map(fn($e) => ['email' => $e->recipient_email, 'count' => $e->count])
+            ->toArray();
+
+        // 11. Page Visits (Hits)
+        $stageVisits = 0;
+        $saccoVisits = 0;
+        $directionVisits = 0;
+        $blogVisits = 0;
+        $discoverVisits = 0;
+
+        foreach ($activityLogs as $log) {
+            $urls = $log->urls_visited ?? [];
+            foreach ($urls as $url) {
+                $urlStr = is_array($url) ? ($url['path'] ?? '') : (string) $url;
+                $urlStr = ltrim($urlStr, '/'); // Normalize
+
+                if (\Str::is(['*stages/*', '*stages'], $urlStr)) {
+                    $stageVisits++;
+                } elseif (\Str::startsWith($urlStr, 'discover/') && !\Str::contains($urlStr, '/stages')) {
+                    $saccoVisits++;
+                } elseif ($urlStr === 'discover' || $urlStr === 'discover/') {
+                    $discoverVisits++;
+                } elseif (\Str::startsWith($urlStr, 'directions/')) {
+                    $directionVisits++;
+                } elseif (\Str::startsWith($urlStr, 'blog/')) {
+                    $blogVisits++;
+                }
+            }
+        }
+
         $stats = [
             'searches' => $searches,
             'unique_visitors' => $uniqueVisitors,
@@ -121,6 +159,14 @@ class SendDailySummaryEmail extends Command
             'super_admin_activity' => $superAdminActivity,
             'active_vehicles' => $activeVehicles,
             'new_saccos' => $newSaccos,
+            'received_emails_count' => $receivedEmailsCount,
+            'page_visits' => [
+                'stage_pages' => $stageVisits,
+                'sacco_pages' => $saccoVisits,
+                'direction_pages' => $directionVisits,
+                'blog_pages' => $blogVisits,
+                'discover_page' => $discoverVisits,
+            ],
         ];
 
         Mail::to('thigamatthew7@gmail.com')->send(new AdminDailySummaryEmail($stats));

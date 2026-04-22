@@ -27,6 +27,26 @@
         - **New Saccos Registered:** {{ $stats['new_saccos'] }}
     </x-mail::panel>
 
+    <x-mail::panel>
+        ### Email Inbound Summary
+        @if(count($stats['received_emails_count']) > 0)
+            @foreach($stats['received_emails_count'] as $emailStat)
+                - **{{ $emailStat['email'] }}:** {{ $emailStat['count'] }} emails received
+            @endforeach
+        @else
+            - No emails received today.
+        @endif
+    </x-mail::panel>
+
+    <x-mail::panel>
+        ### Page Traffic Insights (Hits)
+        - **Stage Pages:** {{ $stats['page_visits']['stage_pages'] }}
+        - **Sacco Pages:** {{ $stats['page_visits']['sacco_pages'] }}
+        - **Direction Pages:** {{ $stats['page_visits']['direction_pages'] }}
+        - **Blog Pages:** {{ $stats['page_visits']['blog_pages'] }}
+        - **Discover Page:** {{ $stats['page_visits']['discover_page'] }}
+    </x-mail::panel>
+
     @if(count($stats['super_admin_activity']) > 0)
         <x-mail::panel>
             ### Super Admin Activity

@@ -260,6 +260,34 @@ class RoutePlannerController extends Controller
         if (!$rawPaths) {
             return response()->json(['message' => 'No route found', 'routes' => []], 200);
         }
+
+        // Apply redundant transfers and early filtering BEFORE enriching to save database queries
+        $filteredRawPaths = [];
+        foreach ($rawPaths as $path) {
+            $redundant = false;
+            $prevSaccoRouteId = null;
+            foreach ($path as $step) {
+                if (str_starts_with($step['label'], 'bus via ')) {
+                    $saccoRouteId = substr($step['label'], 8);
+                    if ($saccoRouteId && $prevSaccoRouteId && $saccoRouteId === $prevSaccoRouteId) {
+                        $redundant = true;
+                        break;
+                    }
+                    $prevSaccoRouteId = $saccoRouteId;
+                }
+            }
+            if (!$redundant) {
+                $filteredRawPaths[] = $path;
+            }
+        }
+
+        // Sort rawPaths by number of legs to favor shorter transfers
+        usort($filteredRawPaths, function ($a, $b) {
+            return count($a) <=> count($b);
+        });
+        // Slice top candidates (with buffer for outliers filter)
+        $rawPaths = array_slice($filteredRawPaths, 0, self::MAX_CANDIDATES * 2);
+
         $enriched = array_map(fn($p) => $this->enrichPath($p, $departAfter, $this->isEventDay), $rawPaths);
         // NEW: collapse tiny CBD bus hops into walks (and re-merge)
         $enriched = array_map(fn($e) => $this->collapseCbdHops($e, 750), $enriched);
@@ -1525,9 +1553,31 @@ class RoutePlannerController extends Controller
         [$bLat, $bLng] = $this->getStopLL($boardStopId);
         [$aLat, $aLng] = $this->getStopLL($alightStopId);
 
+        // Preload stop coordinates to prevent N+1 queries
+        $allStopIds = [];
+        foreach ($candidates as $cand) {
+            $stops = is_string($cand->stop_ids) ? json_decode($cand->stop_ids, true) : ($cand->stop_ids ?? []);
+            foreach ($stops ?: [] as $sid) {
+                if (!array_key_exists($sid, $this->stopLL)) {
+                    $allStopIds[$sid] = true;
+                }
+            }
+        }
+        if (!empty($allStopIds)) {
+            $fetched = Stops::whereIn('stop_id', array_keys($allStopIds))->get();
+            foreach ($fetched as $s) {
+                $this->stopLL[$s->stop_id] = [(float) $s->stop_lat, (float) $s->stop_long];
+            }
+            foreach (array_keys($allStopIds) as $sid) {
+                if (!isset($this->stopLL[$sid])) {
+                    $this->stopLL[$sid] = [null, null];
+                }
+            }
+        }
+
         foreach ($candidates as $cand) {
             $id = $cand->sacco_route_id;
-            $stops = $cand->stop_ids ?? [];
+            $stops = is_string($cand->stop_ids) ? json_decode($cand->stop_ids, true) : ($cand->stop_ids ?? []);
 
             // 1. Exact Match
             $bIdx = array_search($boardStopId, $stops);

@@ -540,6 +540,12 @@ class AuthController extends Controller
             })
             ->first();
 
+        \Log::info('Google OAuth lookup result', [
+            'found' => (bool) $user,
+            'email' => $email,
+            'google_id' => $googleUser->getId()
+        ]);
+
         if (!$user) {
             $roleValue = $this->resolveRole($state['role'] ?? null);
 
@@ -555,8 +561,15 @@ class AuthController extends Controller
                 'password' => Hash::make(Str::random(32)),
                 'google_id' => $googleUser->getId(),
                 'is_verified' => true,
-                'is_approved' => $roleValue === UserRole::USER,
+                'is_approved' => ($roleValue === UserRole::USER),
                 'email_verified_at' => now(),
+            ]);
+
+            \Log::info('Google OAuth user created', [
+                'id' => $user->id,
+                'email' => $user->email,
+                'role' => $user->role,
+                'is_approved' => $user->is_approved
             ]);
 
             // Save Sacco ID if provided for relevant roles
@@ -588,7 +601,7 @@ class AuthController extends Controller
             $user->save();
         }
 
-        if ($user->role !== UserRole::USER && $user->is_approved !== 1) {
+        if ($user->role !== UserRole::USER && !$user->is_approved) {
             return $this->redirectWithError('pending_approval', 'Your account is pending approval.');
         }
 
