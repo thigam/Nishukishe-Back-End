@@ -8,6 +8,7 @@
         - **Total Searches:** {{ $stats['searches'] }}
         - **Unique Visitors:** {{ $stats['unique_visitors'] }}
         - **Incidents Reported:** {{ $stats['incidents'] }}
+        - **Routes Suggested Today:** {{ $stats['suggested_routes_count'] }}
     </x-mail::panel>
 
     <x-mail::panel>

@@ -12,6 +12,7 @@ use App\Models\SaccoRoute;
 use App\Models\Sacco;
 use App\Models\VehicleLiveLocation;
 use App\Models\Email;
+use App\Models\SuggestedRoute;
 use App\Mail\AdminDailySummaryEmail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -143,6 +144,9 @@ class SendDailySummaryEmail extends Command
             }
         }
 
+        // 12. Suggested routes today
+        $suggestedRoutesCount = SuggestedRoute::whereDate('created_at', $today)->count();
+
         $stats = [
             'searches' => $searches,
             'unique_visitors' => $uniqueVisitors,
@@ -167,6 +171,7 @@ class SendDailySummaryEmail extends Command
                 'blog_pages' => $blogVisits,
                 'discover_page' => $discoverVisits,
             ],
+            'suggested_routes_count' => $suggestedRoutesCount,
         ];
 
         Mail::to('thigamatthew7@gmail.com')->send(new AdminDailySummaryEmail($stats));

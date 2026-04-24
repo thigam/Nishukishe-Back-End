@@ -31,6 +31,51 @@ class SeedOccurrencesTest extends Command
         }
         $this->info("Accidents seeded!");
 
+        $cons = ['Roadworks', 'Lane closed', 'Diversion ahead', 'Tarmacking under way', 'Heavy machinery on road'];
+        for ($i = 0; $i < 5; $i++) {
+            \App\Models\Incident::create([
+                'type' => 'construction',
+                'lat' => -1.298 + (rand(-15, 15) / 10000),
+                'lng' => 36.790 + (rand(-15, 15) / 10000),
+                'description' => $cons[array_rand($cons)],
+                'reported_at' => now()->subMinutes(rand(1, 180)),
+                'is_verified' => false,
+                'upvotes' => rand(0, 3),
+                'downvotes' => 0
+            ]);
+        }
+        $this->info("Construction seeded!");
+
+        $flood = ['Road submerged', 'Cars stalling', 'Severe flooding', 'Avoid low lying areas'];
+        for ($i = 0; $i < 3; $i++) {
+            \App\Models\Incident::create([
+                'type' => 'flooding',
+                'lat' => -1.310 + (rand(-10, 10) / 10000),
+                'lng' => 36.820 + (rand(-10, 10) / 10000),
+                'description' => $flood[array_rand($flood)],
+                'reported_at' => now()->subMinutes(rand(1, 90)),
+                'is_verified' => false,
+                'upvotes' => rand(0, 4),
+                'downvotes' => 0
+            ]);
+        }
+        $this->info("Flooding seeded!");
+
+        $pol = ['Speed trap', 'Random checks', 'Police block', 'Heavy presence'];
+        for ($i = 0; $i < 4; $i++) {
+            \App\Models\Incident::create([
+                'type' => 'police',
+                'lat' => -1.250 + (rand(-20, 20) / 10000),
+                'lng' => 36.850 + (rand(-20, 20) / 10000),
+                'description' => $pol[array_rand($pol)],
+                'reported_at' => now()->subMinutes(rand(1, 120)),
+                'is_verified' => false,
+                'upvotes' => rand(0, 1),
+                'downvotes' => 0
+            ]);
+        }
+        $this->info("Police seeded!");
+
         $trf = ['Bumper to bumper', 'Crawling', 'Westlands jam', 'Traffic standing still', 'Heavy flow', '', 'Stuck!'];
         for ($i = 0; $i < 8; $i++) {
             \App\Models\Incident::create([
