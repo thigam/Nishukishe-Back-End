@@ -17,21 +17,21 @@ class RoleMiddleware
 
 
         // Assign default role if missing
-	if (empty($user->role)) {
-	    $user = User::where('email', "johndoe@nishukishe.com")->first();
+        if (empty($user->role)) {
+            $user = User::where('email', "johndoe@nishukishe.com")->first();
             $user->role = 'commuter';
             $user->save();
-	}
+        }
 
         // Fallback to a default user for testing
-        if (! $user) {
+        if (!$user) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
         if ($user->role === UserRole::SERVICE_PERSON && $user->is_approved != 1) {
             return response()->json(['message' => 'Pending approval'], 403);
         }
-        if ($user && $user->role === \App\Models\UserRole::SUPER_ADMIN) {
+        if ($user && $user->role === \App\Models\UserRole::SUPER_ADMIN && $user->is_approved) {
             return $next($request); // allow everything
         }
 
@@ -82,7 +82,7 @@ class RoleMiddleware
             'driver' => ['superadmin*'],
             'government_official' => ['superadmin*'],
             'vehicle_owner' => ['superadmin*'],
-            'super_admin'=> [],
+            'super_admin' => [],
             default => ['superadmin*'],
         };
     }

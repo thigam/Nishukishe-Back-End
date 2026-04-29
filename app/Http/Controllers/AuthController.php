@@ -20,6 +20,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
+use App\Models\UserActionLog;
+use App\Models\LocationPing;
+use App\Models\ActivityLog;
+use App\Models\DeviceSession;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -129,9 +134,14 @@ class AuthController extends Controller
     {
         $this->assertGoogleConfigured();
 
+        $role = $request->query('role');
+        if ($role === UserRole::SUPER_ADMIN) {
+            abort(403, 'Unauthorized role request.');
+        }
+
         $state = $this->encodeState([
             'mode' => 'login',
-            'role' => $request->query('role'),
+            'role' => $role,
             'sacco_id' => $request->query('sacco_id'),
             'redirect' => $request->query('redirect'),
         ]);
@@ -300,7 +310,6 @@ class AuthController extends Controller
     public function userSignUp(Request $request)
     {
         $roleMapping = [
-            'super_admin' => UserRole::SUPER_ADMIN,
             'nishukishe_service_person' => UserRole::SERVICE_PERSON,
             'driver' => UserRole::DRIVER,
             'government_official' => UserRole::GOVERNMENT,
@@ -308,6 +317,7 @@ class AuthController extends Controller
             'vehicle_owner' => UserRole::VEHICLE_OWNER,
             'commuter' => UserRole::USER,
             'tembea_admin' => UserRole::TEMBEA,
+            'parcel_agent' => UserRole::PARCEL_AGENT,
         ];
         Log::info('Commuter sign-up request received', ['request' => $request->all()]);
         // Ensure the request is parsed as JSON
@@ -516,7 +526,6 @@ class AuthController extends Controller
         return match ($roleKey) {
             UserRole::USER => UserRole::USER,
             UserRole::SACCO => UserRole::SACCO,
-            UserRole::SUPER_ADMIN => UserRole::SUPER_ADMIN,
             UserRole::SERVICE_PERSON => UserRole::SERVICE_PERSON,
             UserRole::DRIVER => UserRole::DRIVER,
             UserRole::VEHICLE_OWNER => UserRole::VEHICLE_OWNER,
@@ -681,6 +690,64 @@ class AuthController extends Controller
         return (bool) data_get($googleUser->user ?? [], 'verified_email', true);
     }
 
+    public function deleteProfile(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(["message" => "Not authenticated"], 401);
+        }
+
+        $mode = $request->input('mode', 'full'); // full | purge
+
+        return DB::transaction(function () use ($user, $request, $mode) {
+            if ($mode === 'full') {
+                // Log the action before deleting the user
+                UserActionLog::create([
+                    'user_id' => $user->id,
+                    'user_role' => $user->role,
+                    'action' => 'account_deleted',
+                ]);
+
+                // Deleting the user will:
+                // 1. Delete Sanctum tokens (automatic)
+                // 2. Nullify user_id in device_sessions (nullOnDelete)
+                // 3. Nullify user_id in activity_logs (nullOnDelete)
+                // 4. Cascade delete comments (cascadeOnDelete)
+                $user->delete();
+
+                return response()->json(['message' => 'Account deleted successfully']);
+            }
+
+            if ($mode === 'purge') {
+                $deviceId = $request->input('device_id');
+
+                // Security: Only delete pings if the device_id is valid and has been used by this user
+                if ($deviceId && is_string($deviceId)) {
+                    $ownsDevice = DeviceSession::where('user_id', $user->id)
+                        ->where('device_id', $deviceId)
+                        ->exists();
+
+                    if ($ownsDevice) {
+                        LocationPing::where('device_id', $deviceId)->delete();
+                    }
+                }
+
+                // Delete activity logs for this user
+                ActivityLog::where('user_id', $user->id)->delete();
+
+                UserActionLog::create([
+                    'user_id' => $user->id,
+                    'user_role' => $user->role,
+                    'action' => 'data_purged',
+                    'metadata' => ['device_id' => $deviceId]
+                ]);
+
+                return response()->json(['message' => 'Historical data purged successfully']);
+            }
+
+            return response()->json(['message' => 'Invalid mode'], 400);
+        });
+    }
 }
 
 

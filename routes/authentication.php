@@ -31,8 +31,9 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth
         Route::post('sacco-manager/signup', 'saccoAdminSignup')
             ->name('sacco-manager.signup');
 
-        Route::get('/approve/{id}', 'approveUser')
-            ->name('approve.user');
+        Route::middleware(['auth:sanctum', 'role:super_admin'])->group(function () {
+            Route::get('/approve/{id}', 'approveUser')->name('approve.user');
+        });
 
         Route::put('/update-profile', 'updateProfile')
             ->name('update.profile');

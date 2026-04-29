@@ -35,6 +35,8 @@ use App\Http\Middleware\LogUserActivity;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Controllers\ClientErrorController;
 use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\MobileController;
+
 require __DIR__ . '/mpesa.php';
 
 
@@ -60,6 +62,8 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth
             Route::get('/google/link', 'redirectToGoogleForLinking')->name('auth.google.link');
             Route::delete('/google/link', 'unlinkGoogle')->name('auth.google.unlink');
             Route::get('/google/status', 'googleStatus')->name('auth.google.status');
+            Route::put('/update-profile', 'updateProfile')->name('auth.update-profile');
+            Route::delete('/delete-profile', 'deleteProfile')->name('auth.delete-profile');
         });
     });
 });
@@ -432,4 +436,19 @@ Route::prefix('occurrences')->group(function () {
 });
 
 Route::get('/seo-links', [\App\Http\Controllers\SeoLinksController::class, 'index']);
+
+// ── Mobile App APIs ────────────────────────────────────────────────────────────
+// All routes work for both authenticated and anonymous users.
+Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () {
+    // Session lifecycle (attaches user_id if a valid Sanctum token is present)
+    Route::post('/sessions/start', [MobileController::class, 'sessionStart']);
+    Route::post('/sessions/end', [MobileController::class, 'sessionEnd']);
+
+    // Anonymous location pings (no auth required by design)
+    Route::post('/location-pings', [MobileController::class, 'locationPing']);
+
+    // FCM device token registration
+    Route::post('/device-tokens', [MobileController::class, 'registerToken']);
+});
+
 
