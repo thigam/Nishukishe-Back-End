@@ -9,6 +9,7 @@ osrm-data/
 
 # Laravel 4 specific
 bootstrap/compiled.php
+app/storage/
 
 # Laravel 5 & Lumen specific
 public/storage
@@ -32,4 +33,3 @@ composer.lock
  app/Services/H3Wrapper.php
 storage/certificates/jenga_private.pem
 storage/certificates/jenga_public.pem
-storage/app/firebase/service-account.json

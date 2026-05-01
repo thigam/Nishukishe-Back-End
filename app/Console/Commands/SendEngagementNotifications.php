@@ -23,6 +23,7 @@ class SendEngagementNotifications extends Command
                             {--type=traffic : Notification type: traffic|routes|custom}
                             {--title= : Override the default notification title}
                             {--body= : Override the default notification body}
+                            {--link= : Deep link path to open when user taps (e.g. /occurrences)}
                             {--dry-run : Print what would be sent without actually sending}';
 
     protected $description = 'Send engagement push notifications to all active device tokens via FCM V1 API.';
@@ -104,6 +105,8 @@ class SendEngagementNotifications extends Command
         $fcmUrl = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
         foreach ($tokens as $token) {
+            $deepLink = $this->option('link') ?: '/';
+
             $payload = [
                 'message' => [
                     'token' => $token,
@@ -111,10 +114,19 @@ class SendEngagementNotifications extends Command
                         'title' => $title,
                         'body'  => $body,
                     ],
+                    // Data payload — accessible in the app even when tapped from background
+                    'data' => [
+                        'link' => $deepLink,
+                    ],
                     'android' => [
                         'notification' => [
                             'sound'        => 'default',
-                            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                            'click_action' => 'OPEN_ACTIVITY_1',
+                            // Use your app's drawable resource name (without extension)
+                            // Place ic_notification.png in android/app/src/main/res/drawable/
+                            'icon'         => 'ic_notification',
+                            // Brand color shown in the notification shade
+                            'color'        => '#2563EB',
                         ],
                     ],
                 ],
