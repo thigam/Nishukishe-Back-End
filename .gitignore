@@ -32,3 +32,4 @@ composer.lock
  app/Services/H3Wrapper.php
 storage/certificates/jenga_private.pem
 storage/certificates/jenga_public.pem
+storage/app/firebase/service-account.json
