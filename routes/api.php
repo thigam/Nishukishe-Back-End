@@ -411,6 +411,10 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::post('/mark-done', [\App\Http\Controllers\SuggestedRouteController::class, 'markDone']);
     });
 
+    // Mobile Analytics
+    Route::get('admin/mobile-analytics', [\App\Http\Controllers\MobileAnalyticsController::class, 'index'])
+        ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
+
 });
 
 
