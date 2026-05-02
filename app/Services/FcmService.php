@@ -14,8 +14,15 @@ class FcmService
     {
         $serviceAccountPath = config('services.fcm.service_account_path');
         if (!$serviceAccountPath || !file_exists($serviceAccountPath)) {
-            Log::error('FCM service account JSON not found.');
-            return ['sent' => 0, 'failed' => 0];
+            Log::error('FCM service account JSON not found at: ' . ($serviceAccountPath ?: 'PATH_NOT_SET'));
+            return ['sent' => 0, 'failed' => 0, 'error' => 'config_error'];
+        }
+
+        // Quick check for JSON validity
+        $json = json_decode(file_get_contents($serviceAccountPath), true);
+        if (!$json || !isset($json['private_key'])) {
+            Log::error('FCM service account JSON is invalid or missing private_key.');
+            return ['sent' => 0, 'failed' => 0, 'error' => 'config_error'];
         }
 
         $projectId = config('services.fcm.project_id');
@@ -48,7 +55,6 @@ class FcmService
                     'android' => [
                         'notification' => [
                             'sound'        => 'default',
-                            'click_action' => 'OPEN_ACTIVITY_1',
                             'icon'         => 'ic_stat_bus',
                             'color'        => '#2563EB',
                         ],

@@ -70,10 +70,16 @@ class NotificationCampaignController extends Controller
                 $validated['link'] ?: '/'
             );
             
+            // If the service returned a failure specifically because of configuration
+            if (isset($result['error']) && $result['error'] === 'config_error') {
+                $campaign->delete(); // Remove the "ghost" campaign
+                return response()->json([
+                    'message' => 'FCM Configuration Error: Service account JSON not found on server.'
+                ], 400);
+            }
+
             $campaign->update([
                 'status' => 'sent',
-                // Keep the recipient count as attempted, or successful sends depending on preference.
-                // We'll keep intended recipient count.
             ]);
         } else {
             $campaign->update(['status' => 'failed']);
