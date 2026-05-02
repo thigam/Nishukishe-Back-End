@@ -11,6 +11,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Middleware\CorsMiddleware;
 use Illuminate\Http\Request;
 use App\Http\Controllers\SaccoManagerController;
+use App\Http\Controllers\NotificationCampaignController;
 use App\Http\Controllers\DriverLocationController;
 use App\Http\Controllers\VehicleLiveLocationController;
 use App\Http\Controllers\OwnerInvitationController;
@@ -383,6 +384,11 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
     Route::get('admin/access-control/service-persons', [SaccoManagerApprovalController::class, 'servicePersons'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
 
+    Route::prefix('admin/notifications')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_notifications')->group(function () {
+        Route::get('campaigns', [NotificationCampaignController::class, 'index']);
+        Route::post('campaigns', [NotificationCampaignController::class, 'store']);
+    });
+
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
 
@@ -453,6 +459,9 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
 
     // FCM device token registration
     Route::post('/device-tokens', [MobileController::class, 'registerToken']);
+
+    // Track notification clicks
+    Route::post('/notifications/{campaign_id}/click', [NotificationCampaignController::class, 'trackClick']);
 });
 
 

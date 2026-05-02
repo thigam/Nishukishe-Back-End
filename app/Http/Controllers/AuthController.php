@@ -674,13 +674,37 @@ class AuthController extends Controller
 
     protected function redirectToFrontend(array $params): RedirectResponse
     {
-        $frontend = rtrim(config('services.google.frontend_redirect') ?? config('app.url'), '/');
+        $redirect = $params['redirect'] ?? null;
+        unset($params['redirect']);
+
+        $baseUrl = config('services.google.frontend_redirect') ?? config('app.url');
+
+        // If a redirect parameter is provided, use it as the base (e.g. for mobile deep links)
+        if ($redirect) {
+            if (str_starts_with($redirect, 'http')) {
+                // Security: Only allow web redirects to our own domains
+                $allowedDomains = [
+                    parse_url(config('app.url'), PHP_URL_HOST),
+                    parse_url(config('services.google.frontend_redirect'), PHP_URL_HOST)
+                ];
+                $targetDomain = parse_url($redirect, PHP_URL_HOST);
+
+                if (in_array($targetDomain, array_filter($allowedDomains))) {
+                    $baseUrl = $redirect;
+                }
+            } else {
+                // Custom scheme (e.g. com.nishukishe.app://) - allow it
+                $baseUrl = $redirect;
+            }
+        }
+
+        $frontend = rtrim($baseUrl, '/');
         $query = http_build_query(array_filter(
             $params,
             static fn($value) => !is_null($value) && $value !== ''
         ));
 
-        $url = $frontend . ($query ? ('?' . $query) : '');
+        $url = $frontend . ($query ? (str_contains($frontend, '?') ? '&' : '?') . $query : '');
 
         return redirect()->away($url);
     }
