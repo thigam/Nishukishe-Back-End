@@ -32,6 +32,7 @@ class NotificationCampaignController extends Controller
             'message'      => 'required|string',
             'link'         => 'nullable|string',
             'target_group' => 'required|in:all,commuters,drivers,sacco_admins,vehicle_owners',
+            'scheduled_for'=> 'nullable|date',
         ]);
 
         $query = DeviceToken::where('is_active', true);
@@ -52,22 +53,30 @@ class NotificationCampaignController extends Controller
         $tokens = $query->pluck('token')->toArray();
         $recipientsCount = count($tokens);
 
+        $isScheduled = !empty($validated['scheduled_for']) && strtotime($validated['scheduled_for']) > time();
+
         $campaign = NotificationCampaign::create([
             'title'            => $validated['title'],
             'message'          => $validated['message'],
             'link'             => $validated['link'] ?: '/',
             'target_group'     => $validated['target_group'],
-            'status'           => 'pending',
+            'status'           => $isScheduled ? 'scheduled' : 'pending',
             'recipients_count' => $recipientsCount,
             'created_by'       => $request->user()->id,
+            'scheduled_for'    => $isScheduled ? $validated['scheduled_for'] : null,
         ]);
+
+        if ($isScheduled) {
+            return response()->json($campaign, 201);
+        }
 
         if ($recipientsCount > 0) {
             $result = $fcmService->sendNotification(
                 $tokens,
                 $validated['title'],
                 $validated['message'],
-                $validated['link'] ?: '/'
+                $validated['link'] ?: '/',
+                $campaign->id
             );
             
             // If the service returned a failure specifically because of configuration

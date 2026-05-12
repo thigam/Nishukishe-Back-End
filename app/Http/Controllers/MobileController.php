@@ -58,6 +58,25 @@ class MobileController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Periodically update the duration of an open session.
+     */
+    public function sessionHeartbeat(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'session_id' => 'required|integer|exists:device_sessions,id',
+        ]);
+
+        $session = DeviceSession::find($validated['session_id']);
+
+        if ($session && is_null($session->closed_at)) {
+            $session->duration_seconds = now()->diffInSeconds($session->opened_at);
+            $session->save();
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     // ──────────────────────────────────────────────────────────────
     // LOCATION PINGS
     // ──────────────────────────────────────────────────────────────

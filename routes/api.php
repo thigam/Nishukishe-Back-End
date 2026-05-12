@@ -387,6 +387,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
     Route::prefix('admin/notifications')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_notifications')->group(function () {
         Route::get('campaigns', [NotificationCampaignController::class, 'index']);
         Route::post('campaigns', [NotificationCampaignController::class, 'store']);
+        Route::get('stats/automated', [\App\Http\Controllers\NotificationStatsController::class, 'automatedStats']);
     });
 
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
@@ -453,6 +454,7 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
     // Session lifecycle (attaches user_id if a valid Sanctum token is present)
     Route::post('/sessions/start', [MobileController::class, 'sessionStart']);
     Route::post('/sessions/end', [MobileController::class, 'sessionEnd']);
+    Route::post('/sessions/heartbeat', [MobileController::class, 'sessionHeartbeat']);
 
     // Anonymous location pings (no auth required by design)
     Route::post('/location-pings', [MobileController::class, 'locationPing']);
@@ -462,6 +464,7 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
 
     // Track notification clicks
     Route::post('/notifications/{campaign_id}/click', [NotificationCampaignController::class, 'trackClick']);
+    Route::post('/notifications/automated/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackAutomatedClick']);
 });
 
 

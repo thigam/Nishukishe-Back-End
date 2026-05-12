@@ -39,6 +39,8 @@ class AuthController extends Controller
             'name' => $request->user()->name,
             'role' => $request->user()->role,
             'permissions' => $request->user()->permissions->pluck('permission'),
+            'max_notifications_per_day' => $request->user()->max_notifications_per_day,
+            'notification_locations' => $request->user()->notification_locations,
         ]);
     }
 
@@ -439,6 +441,12 @@ class AuthController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'phone' => 'sometimes|required|string|unique:users,phone,' . $user->id,
             'email' => 'sometimes|required|email|unique:users,email,' . $user->id,
+            'max_notifications_per_day' => 'sometimes|integer|min:0|max:50',
+            'notification_locations' => 'sometimes|array',
+            'notification_locations.*.lat' => 'required_with:notification_locations|numeric',
+            'notification_locations.*.lng' => 'required_with:notification_locations|numeric',
+            'notification_locations.*.radius' => 'required_with:notification_locations|numeric',
+            'notification_locations.*.name' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -462,6 +470,12 @@ class AuthController extends Controller
         }
         if ($request->has('password')) {
             $user->password = Hash::make($request->password);
+        }
+        if ($request->has('max_notifications_per_day')) {
+            $user->max_notifications_per_day = $request->max_notifications_per_day;
+        }
+        if ($request->has('notification_locations')) {
+            $user->notification_locations = $request->notification_locations;
         }
 
         $user->save();
