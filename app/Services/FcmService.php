@@ -42,8 +42,14 @@ class FcmService
         $fcmUrl = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
         foreach ($tokens as $token) {
+            // Ensure link is always absolute so it works in both the browser SW
+            // (clients.openWindow) and the Capacitor WebView navigation
+            $absoluteLink = str_starts_with($link, 'http')
+                ? $link
+                : 'https://nishukishe.com' . (str_starts_with($link, '/') ? $link : '/' . $link);
+
             $data = [
-                'link' => $link,
+                'link' => $absoluteLink,
             ];
 
             if ($campaignId) {

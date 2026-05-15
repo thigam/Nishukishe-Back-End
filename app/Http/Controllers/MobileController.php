@@ -123,18 +123,20 @@ class MobileController extends Controller
     public function registerToken(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'device_id' => 'required|string|max:64',
-            'token'     => 'required|string',
-            'platform'  => 'nullable|string|max:20',
+            'device_id'  => 'required|string|max:64',
+            'token'      => 'required|string',
+            'platform'   => 'nullable|string|max:20',
+            'token_type' => 'nullable|in:fcm,web_push',
         ]);
 
         DeviceToken::updateOrCreate(
             ['device_id' => $validated['device_id']],
             [
-                'user_id'   => $request->user()?->id,
-                'token'     => $validated['token'],
-                'platform'  => $validated['platform'] ?? 'android',
-                'is_active' => true,
+                'user_id'    => $request->user()?->id,
+                'token'      => $validated['token'],
+                'platform'   => $validated['platform'] ?? 'android',
+                'token_type' => $validated['token_type'] ?? 'fcm',
+                'is_active'  => true,
             ]
         );
 

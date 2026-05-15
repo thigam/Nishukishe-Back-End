@@ -85,4 +85,49 @@ class SuperAdminAnalyticsController extends Controller
 
         return response()->json($data);
     }
+
+    public function webHeatmap(Request $request): JsonResponse
+    {
+        // IP-based approximate geolocation for web users.
+        // We look at activity_logs (which records ip_address) from the last 7 days.
+        $recentIps = \Illuminate\Support\Facades\DB::table('activity_logs')
+            ->whereNotNull('ip_address')
+            ->where('started_at', '>=', now()->subDays(7))
+            ->distinct()
+            ->pluck('ip_address');
+
+        $heatmapData = [];
+
+        foreach ($recentIps as $ip) {
+            if ($ip === '127.0.0.1' || $ip === '::1') continue;
+
+            // Simple caching to avoid spamming the free API
+            $cacheKey = "ip_geo_{$ip}";
+            $geo = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addDays(30), function () use ($ip) {
+                try {
+                    $response = \Illuminate\Support\Facades\Http::timeout(3)->get("http://ip-api.com/json/{$ip}");
+                    if ($response->successful() && $response->json('status') === 'success') {
+                        return [
+                            'lat' => $response->json('lat'),
+                            'lng' => $response->json('lon'),
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    // Ignore timeouts or errors
+                }
+                return null;
+            });
+
+            if ($geo) {
+                $heatmapData[] = [
+                    'lat' => $geo['lat'],
+                    'lng' => $geo['lng'],
+                    // Using a lower default weight/intensity since IPs are grouped
+                    'weight' => 0.5 
+                ];
+            }
+        }
+
+        return response()->json(['pings' => $heatmapData]);
+    }
 }

@@ -16,12 +16,27 @@ class SendAutomatedIncidentNotifications extends Command
     protected $signature = 'app:send-incident-notifications';
     protected $description = 'Cross checks reported incidents with recent user locations and saved locations to send automated notifications.';
 
+    // Type weights for priority scoring
+    private const TYPE_WEIGHTS = [
+        'accident' => 10,
+        'traffic'  => 5,
+        'hazard'   => 3,
+        'security' => 4,
+    ];
+
+    // Upvote score threshold to override the 5-hour cooldown
+    private const COOLDOWN_OVERRIDE_THRESHOLD = 15;
+
+    // Minimum hours between notifications per user/device
+    private const COOLDOWN_HOURS = 5;
+
     public function handle(FcmService $fcmService)
     {
         $this->info("Starting automated incident notifications check...");
 
-        // Get incidents created in the last 2 hours (whether active or scheduled for the future)
         $now = Carbon::now();
+
+        // Get incidents created in the last 2 hours
         $incidents = Incident::where('reported_at', '>=', $now->copy()->subHours(2))->get();
 
         if ($incidents->isEmpty()) {
@@ -29,140 +44,203 @@ class SendAutomatedIncidentNotifications extends Command
             return;
         }
 
-        // 1. Get recent location pings (last 1 hour)
-        // Group by device_id to get the latest ping
+        // Get recent location pings (last 1 hour), deduplicated by device
         $recentPings = LocationPing::where('recorded_at', '>=', $now->copy()->subHour())
             ->orderBy('recorded_at', 'desc')
             ->get()
             ->unique('device_id');
 
-        // 2. Get users with notification_locations configured
+        // Get users with saved notification_locations
         $usersWithLocations = User::whereNotNull('notification_locations')->get();
 
+        // ── Build a map: identifier → best candidate ───────────────────────────
+        // Key: 'device:{device_id}' or 'user:{user_id}'
+        // Value: ['incident' => Incident, 'score' => int, 'device_id' => ?string, 'user_id' => ?int]
+        $bestForCandidate = [];
+
         foreach ($incidents as $incident) {
-            $tokensToSend = [];
-            $notificationsToLog = [];
+            $score = $this->scoreIncident($incident);
 
-            // A. Check against live pings
+            // A. Check live location pings
             foreach ($recentPings as $ping) {
-                if ($this->calculateDistance($incident->lat, $incident->lng, $ping->lat, $ping->lng) <= 2) {
-                    // Check if already notified for this incident
-                    if ($this->hasBeenNotified($incident->id, null, $ping->device_id)) {
-                        continue;
-                    }
+                if ($this->calculateDistance($incident->lat, $incident->lng, $ping->lat, $ping->lng) > 2) {
+                    continue;
+                }
 
-                    // Get token for device
-                    $deviceToken = DeviceToken::where('device_id', $ping->device_id)
-                        ->where('is_active', true)
-                        ->first();
-
-                    if (!$deviceToken) continue;
-
-                    // Check daily limit if associated with a user
-                    if ($deviceToken->user_id) {
-                        if ($this->hasExceededDailyLimit($deviceToken->user_id)) {
-                            continue;
-                        }
-                    }
-
-                    $tokensToSend[$deviceToken->token] = [
-                        'user_id' => $deviceToken->user_id,
-                        'device_id' => $deviceToken->device_id
+                $key = "device:{$ping->device_id}";
+                if (!isset($bestForCandidate[$key]) || $score > $bestForCandidate[$key]['score']) {
+                    $bestForCandidate[$key] = [
+                        'incident'  => $incident,
+                        'score'     => $score,
+                        'device_id' => $ping->device_id,
+                        'user_id'   => null,
                     ];
                 }
             }
 
-            // B. Check against users' saved locations
+            // B. Check saved user locations
             foreach ($usersWithLocations as $user) {
-                $locations = is_string($user->notification_locations) ? json_decode($user->notification_locations, true) : $user->notification_locations;
+                $locations = is_string($user->notification_locations)
+                    ? json_decode($user->notification_locations, true)
+                    : $user->notification_locations;
+
                 if (!is_array($locations)) continue;
 
-                $isWithinRange = false;
                 foreach ($locations as $loc) {
-                    if (isset($loc['lat']) && isset($loc['lng'])) {
-                        if ($this->calculateDistance($incident->lat, $incident->lng, $loc['lat'], $loc['lng']) <= 2) {
-                            $isWithinRange = true;
-                            break;
+                    if (!isset($loc['lat'], $loc['lng'])) continue;
+
+                    if ($this->calculateDistance($incident->lat, $incident->lng, $loc['lat'], $loc['lng']) <= 2) {
+                        $key = "user:{$user->id}";
+                        if (!isset($bestForCandidate[$key]) || $score > $bestForCandidate[$key]['score']) {
+                            $bestForCandidate[$key] = [
+                                'incident'  => $incident,
+                                'score'     => $score,
+                                'device_id' => null,
+                                'user_id'   => $user->id,
+                            ];
                         }
+                        break; // Only need one matching location per user
                     }
                 }
-
-                if ($isWithinRange) {
-                    if ($this->hasExceededDailyLimit($user->id)) continue;
-                    if ($this->hasBeenNotified($incident->id, $user->id, null)) continue;
-
-                    // Get user's active tokens
-                    $userTokens = DeviceToken::where('user_id', $user->id)->where('is_active', true)->get();
-                    foreach ($userTokens as $tokenRec) {
-                        $tokensToSend[$tokenRec->token] = [
-                            'user_id' => $user->id,
-                            'device_id' => $tokenRec->device_id
-                        ];
-                    }
-                }
-            }
-
-            // Send Notifications
-            if (!empty($tokensToSend)) {
-                $title = "Alert: " . ucfirst($incident->type) . " reported nearby";
-                if ($incident->incident_sub_type) {
-                    $title = "Alert: " . ucfirst($incident->incident_sub_type) . " nearby";
-                }
-                $body = "An incident has been reported near you or your saved locations. Tap to verify or see details.";
-                $link = "/?incident_id=" . $incident->id . "&showOccurrences=true";
-
-                $fcmService->sendNotification(
-                    array_keys($tokensToSend),
-                    $title,
-                    $body,
-                    $link
-                );
-
-                // Log notifications
-                foreach ($tokensToSend as $token => $data) {
-                    IncidentNotification::create([
-                        'incident_id' => $incident->id,
-                        'user_id' => $data['user_id'],
-                        'device_id' => $data['device_id'],
-                    ]);
-                }
-
-                $this->info("Sent " . count($tokensToSend) . " notifications for incident ID: " . $incident->id);
             }
         }
 
-        $this->info("Automated incident notifications check complete.");
+        if (empty($bestForCandidate)) {
+            $this->info("No candidates to notify.");
+            return;
+        }
+
+        // ── For each candidate, check cooldown & daily limit, then send ────────
+        $sentCount = 0;
+
+        foreach ($bestForCandidate as $candidate) {
+            $incident  = $candidate['incident'];
+            $userId    = $candidate['user_id'];
+            $deviceId  = $candidate['device_id'];
+            $score     = $candidate['score'];
+            $highPriority = ($score >= self::COOLDOWN_OVERRIDE_THRESHOLD);
+
+            // Daily limit check (user-based only)
+            if ($userId && $this->hasExceededDailyLimit($userId)) {
+                continue;
+            }
+
+            // Cooldown check — skipped if incident is high-priority (viral upvotes)
+            if (!$highPriority && $this->isInCooldown($userId, $deviceId)) {
+                continue;
+            }
+
+            // Already notified about this specific incident?
+            if ($this->hasBeenNotifiedAboutIncident($incident->id, $userId, $deviceId)) {
+                continue;
+            }
+
+            // Resolve tokens to send to
+            $tokens = [];
+            if ($deviceId) {
+                $deviceToken = DeviceToken::where('device_id', $deviceId)
+                    ->where('is_active', true)
+                    ->first();
+                if ($deviceToken) {
+                    $tokens[] = ['token' => $deviceToken->token, 'user_id' => $deviceToken->user_id, 'device_id' => $deviceId];
+                }
+            } elseif ($userId) {
+                $userTokens = DeviceToken::where('user_id', $userId)->where('is_active', true)->get();
+                foreach ($userTokens as $t) {
+                    $tokens[] = ['token' => $t->token, 'user_id' => $userId, 'device_id' => $t->device_id];
+                }
+            }
+
+            if (empty($tokens)) continue;
+
+            // Build notification content
+            $type  = $incident->incident_sub_type ?: $incident->type;
+            $title = "Alert: " . ucfirst($type) . " reported nearby";
+            $body  = "An incident has been reported near you or your saved locations. Tap to view details.";
+            $link  = "https://nishukishe.com/?incident_id={$incident->id}&showOccurrences=true";
+
+            $fcmService->sendNotification(
+                array_column($tokens, 'token'),
+                $title,
+                $body,
+                $link
+            );
+
+            // Log each notification sent
+            foreach ($tokens as $t) {
+                IncidentNotification::create([
+                    'incident_id' => $incident->id,
+                    'user_id'     => $t['user_id'],
+                    'device_id'   => $t['device_id'],
+                    'created_at'  => now(),
+                ]);
+                $sentCount++;
+            }
+        }
+
+        $this->info("Automated incident notifications complete. Sent: {$sentCount}.");
     }
 
-    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    /**
+     * Score an incident for priority sorting.
+     * Higher score = more important = should be sent first.
+     */
+    private function scoreIncident(Incident $incident): int
     {
-        $earthRadius = 6371; // km
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLon = deg2rad($lon2 - $lon1);
-        $a = sin($dLat/2) * sin($dLat/2) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon/2) * sin($dLon/2);
-        $c = 2 * asin(sqrt($a));
-        return $earthRadius * $c;
+        $typeWeight = self::TYPE_WEIGHTS[strtolower($incident->type ?? '')] ?? 0;
+        $netVotes   = ($incident->upvotes ?? 0) - ($incident->downvotes ?? 0);
+        return $typeWeight + max(0, $netVotes);
     }
 
-    private function hasBeenNotified($incidentId, $userId, $deviceId)
+    /**
+     * Check whether this user/device is in the 5-hour global notification cooldown.
+     * High-priority incidents bypass this check.
+     */
+    private function isInCooldown(?int $userId, ?string $deviceId): bool
+    {
+        $cutoff = Carbon::now()->subHours(self::COOLDOWN_HOURS);
+        $query  = IncidentNotification::where('created_at', '>=', $cutoff);
+
+        if ($userId) {
+            return $query->where('user_id', $userId)->exists();
+        } elseif ($deviceId) {
+            return $query->where('device_id', $deviceId)->exists();
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if the user/device has already been notified about this specific incident.
+     */
+    private function hasBeenNotifiedAboutIncident(int $incidentId, ?int $userId, ?string $deviceId): bool
     {
         $query = IncidentNotification::where('incident_id', $incidentId);
-        
+
         if ($userId) {
-            $query->where('user_id', $userId);
+            return $query->where('user_id', $userId)->exists();
         } elseif ($deviceId) {
-            $query->where('device_id', $deviceId);
+            return $query->where('device_id', $deviceId)->exists();
         }
 
-        return $query->exists();
+        return false;
     }
 
-    private function hasExceededDailyLimit($userId)
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2): float
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) ** 2;
+        return $earthRadius * 2 * asin(sqrt($a));
+    }
+
+    private function hasExceededDailyLimit(int $userId): bool
     {
         $user = User::find($userId);
         if (!$user) return false;
 
-        $max = $user->max_notifications_per_day ?? 3;
+        $max   = $user->max_notifications_per_day ?? 3;
         $count = IncidentNotification::where('user_id', $userId)
             ->whereDate('created_at', Carbon::today())
             ->count();
@@ -170,4 +248,3 @@ class SendAutomatedIncidentNotifications extends Command
         return $count >= $max;
     }
 }
-
