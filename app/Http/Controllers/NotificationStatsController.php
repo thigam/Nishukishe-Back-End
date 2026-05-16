@@ -26,7 +26,7 @@ class NotificationStatsController extends Controller
         $end   = $request->query('end')   ? Carbon::parse($request->query('end'))   : Carbon::now();
 
         // ── Overall totals ────────────────────────────────────────────────────
-        $baseQuery   = IncidentNotification::whereBetween('created_at', [$start, $end]);
+        $baseQuery   = IncidentNotification::whereBetween('incident_notifications.created_at', [$start, $end]);
 
         $totalSent   = (clone $baseQuery)->count();
         $totalClicks = (clone $baseQuery)->whereNotNull('clicked_at')->count();
@@ -51,11 +51,11 @@ class NotificationStatsController extends Controller
         // ── Time-series (binned by day or month) ─────────────────────────────
         $dateFormat = $bin === 'month' ? '%Y-%m' : '%Y-%m-%d';
 
-        $series = IncidentNotification::whereBetween('created_at', [$start, $end])
+        $series = IncidentNotification::whereBetween('incident_notifications.created_at', [$start, $end])
             ->select(
-                DB::raw("DATE_FORMAT(created_at, '{$dateFormat}') as period"),
+                DB::raw("DATE_FORMAT(incident_notifications.created_at, '{$dateFormat}') as period"),
                 DB::raw('COUNT(*) as sent'),
-                DB::raw('SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicks')
+                DB::raw('SUM(CASE WHEN incident_notifications.clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicks')
             )
             ->groupBy('period')
             ->orderBy('period')

@@ -52,6 +52,11 @@ class NotificationCampaignController extends Controller
 
         $tokens = $query->pluck('token')->toArray();
         $recipientsCount = count($tokens);
+        
+        Log::info("Notification Campaign: Sending to {$recipientsCount} tokens.", [
+            'target_group' => $validated['target_group'],
+            'token_types' => DeviceToken::whereIn('token', $tokens)->select('token_type', DB::raw('count(*) as count'))->groupBy('token_type')->get()->toArray()
+        ]);
 
         $isScheduled = !empty($validated['scheduled_for']) && strtotime($validated['scheduled_for']) > time();
 

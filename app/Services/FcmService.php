@@ -44,9 +44,10 @@ class FcmService
         foreach ($tokens as $token) {
             // Ensure link is always absolute so it works in both the browser SW
             // (clients.openWindow) and the Capacitor WebView navigation
+            $baseUrl = env('FRONTEND_URL', env('APP_URL', 'https://nishukishe.com'));
             $absoluteLink = str_starts_with($link, 'http')
                 ? $link
-                : 'https://nishukishe.com' . (str_starts_with($link, '/') ? $link : '/' . $link);
+                : rtrim($baseUrl, '/') . (str_starts_with($link, '/') ? $link : '/' . $link);
 
             $data = [
                 'link' => $absoluteLink,
