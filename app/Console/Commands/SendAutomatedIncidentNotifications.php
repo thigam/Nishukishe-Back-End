@@ -157,7 +157,8 @@ class SendAutomatedIncidentNotifications extends Command
             $type  = $incident->incident_sub_type ?: $incident->type;
             $title = "Alert: " . ucfirst($type) . " reported nearby";
             $body  = "An incident has been reported near you or your saved locations. Tap to view details.";
-            $link  = "https://nishukishe.com/?incident_id={$incident->id}&showOccurrences=true";
+            $frontendUrl = rtrim(env('FRONTEND_URL', 'https://nishukishe.com'), '/');
+            $link  = "{$frontendUrl}/?incident_id={$incident->id}&showOccurrences=true";
 
             $fcmService->sendNotification(
                 array_column($tokens, 'token'),

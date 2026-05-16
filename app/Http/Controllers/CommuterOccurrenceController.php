@@ -17,8 +17,17 @@ class CommuterOccurrenceController extends Controller
 
     public function index(Request $request)
     {
+        // Include: incidents from last 6 hours OR any that are still upcoming (scheduled future events)
         $query = Incident::with('user')
-            ->where('reported_at', '>=', now()->subHours(6));
+            ->where(function ($q) {
+                $q->where('reported_at', '>=', now()->subHours(6))
+                  ->orWhere('start_time', '>=', now()); // Include future scheduled incidents
+            })
+            // Also exclude incidents that have already ended
+            ->where(function ($q) {
+                $q->whereNull('end_time')
+                  ->orWhere('end_time', '>=', now());
+            });
 
         // Geographic Bounding Filter
         if ($request->filled('lat') && $request->filled('lng')) {
@@ -87,16 +96,33 @@ class CommuterOccurrenceController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'type' => 'required|string',
-            'lat' => 'required|numeric',
-            'lng' => 'required|numeric',
-            'description' => 'nullable|string'
+            'type'                => 'required|string',
+            'lat'                 => 'required|numeric',
+            'lng'                 => 'required|numeric',
+            'description'         => 'nullable|string',
+            'incident_sub_type'   => 'nullable|string|max:255',
+            'path_coordinates'    => 'nullable|array',
+            'path_coordinates.*'  => 'array|size:2',
+            'start_time'          => 'nullable|date',
+            'end_time'            => 'nullable|date',
         ]);
 
         // Support anonymous reporting if user is not authenticated
         $userId = $request->user() ? $request->user()->id : null;
 
-        $incident = $this->incidentService->report(null, null, $userId, $data);
+        // Build the payload for the IncidentService
+        $payload = [
+            'type'              => $data['type'],
+            'lat'               => $data['lat'],
+            'lng'               => $data['lng'],
+            'description'       => $data['description'] ?? null,
+            'incident_sub_type' => $data['incident_sub_type'] ?? null,
+            'path_coordinates'  => $data['path_coordinates'] ?? null,
+            'start_time'        => $data['start_time'] ?? null,
+            'end_time'          => $data['end_time'] ?? null,
+        ];
+
+        $incident = $this->incidentService->report(null, null, $userId, $payload);
 
         return response()->json($incident, 201);
     }

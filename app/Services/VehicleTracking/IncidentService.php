@@ -15,14 +15,18 @@ class IncidentService
     {
         return DB::transaction(function () use ($driverId, $vehicleId, $userId, $data) {
             $incident = Incident::create([
-                'driver_id' => $driverId,
-                'vehicle_id' => $vehicleId,
-                'user_id' => $userId,
-                'type' => $data['type'],
-                'lat' => $data['lat'],
-                'lng' => $data['lng'],
-                'description' => $data['description'] ?? null,
-                'reported_at' => now(),
+                'driver_id'         => $driverId,
+                'vehicle_id'        => $vehicleId,
+                'user_id'           => $userId,
+                'type'              => $data['type'],
+                'lat'               => $data['lat'],
+                'lng'               => $data['lng'],
+                'description'       => $data['description'] ?? null,
+                'incident_sub_type' => $data['incident_sub_type'] ?? null,
+                'path_coordinates'  => $data['path_coordinates'] ?? null,
+                'start_time'        => $data['start_time'] ?? null,
+                'end_time'          => $data['end_time'] ?? null,
+                'reported_at'       => now(),
             ]);
 
             $this->checkConsensus($incident);

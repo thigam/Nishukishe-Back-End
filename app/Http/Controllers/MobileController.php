@@ -50,8 +50,8 @@ class MobileController extends Controller
 
         // Only update if not already closed
         if ($session && is_null($session->closed_at)) {
-            $session->closed_at       = now();
-            $session->duration_seconds = now()->diffInSeconds($session->opened_at);
+            $session->closed_at        = now();
+            $session->duration_seconds = max(0, (int) abs(now()->diffInSeconds($session->opened_at)));
             $session->save();
         }
 
@@ -70,7 +70,7 @@ class MobileController extends Controller
         $session = DeviceSession::find($validated['session_id']);
 
         if ($session && is_null($session->closed_at)) {
-            $session->duration_seconds = now()->diffInSeconds($session->opened_at);
+            $session->duration_seconds = max(0, (int) abs(now()->diffInSeconds($session->opened_at)));
             $session->save();
         }
 
