@@ -7,6 +7,7 @@ use App\Models\NotificationCampaign;
 use App\Services\FcmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class NotificationCampaignController extends Controller
 {
