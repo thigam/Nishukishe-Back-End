@@ -28,6 +28,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_active',
         'is_approved', // for sacco managers
         'google_id',
+        'max_notifications_per_day',
+        'notification_locations',
     ];
 
     protected $casts = [
@@ -35,6 +37,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_verified' => 'boolean',
         'is_active' => 'boolean',
         'is_approved' => 'boolean',
+        'notification_locations' => 'array',
     ];
 
     protected $hidden = [

@@ -20,9 +20,12 @@ class CorsMiddleware
 	    'https://frontend.nishy.test',
         'http://nishukishe.com',
         'https://nishukishe.com',
+        'https://staging.nishukishe.com',
         'https://backend.moskwito.com',
         'https://front.moskwito.com',
         'https://images.nishukishe.com',
+        'http://localhost',
+        'capacitor://localhost',
         ];
         
         // Check if the origin is allowed

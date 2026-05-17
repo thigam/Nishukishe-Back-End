@@ -205,6 +205,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
 
         Route::get('admin/analytics/zero-result-searches', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'zeroResultSearches']);
         Route::get('admin/analytics/dead-guides', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'deadGuides']);
+        Route::get('admin/analytics/web-heatmap', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'webHeatmap']);
 
         // Driver Routes
         Route::prefix('driver')->group(function () {
@@ -387,6 +388,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
     Route::prefix('admin/notifications')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_notifications')->group(function () {
         Route::get('campaigns', [NotificationCampaignController::class, 'index']);
         Route::post('campaigns', [NotificationCampaignController::class, 'store']);
+        Route::get('stats/automated', [\App\Http\Controllers\NotificationStatsController::class, 'automatedStats']);
     });
 
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
@@ -447,12 +449,27 @@ Route::prefix('occurrences')->group(function () {
 
 Route::get('/seo-links', [\App\Http\Controllers\SeoLinksController::class, 'index']);
 
+// Public Firebase config for the service worker.
+// These are the same NEXT_PUBLIC_FIREBASE_* values already sent to the browser;
+// exposing them here allows firebase-messaging-sw.js to initialise dynamically.
+Route::get('/firebase-config', function () {
+    return response()->json([
+        'apiKey'            => env('NEXT_PUBLIC_FIREBASE_API_KEY'),
+        'authDomain'        => env('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN'),
+        'projectId'         => env('NEXT_PUBLIC_FIREBASE_PROJECT_ID'),
+        'storageBucket'     => env('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'),
+        'messagingSenderId' => env('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID'),
+        'appId'             => env('NEXT_PUBLIC_FIREBASE_APP_ID'),
+    ])->header('Cache-Control', 'public, max-age=3600');
+})->middleware([CorsMiddleware::class]);
+
 // ── Mobile App APIs ────────────────────────────────────────────────────────────
 // All routes work for both authenticated and anonymous users.
 Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () {
     // Session lifecycle (attaches user_id if a valid Sanctum token is present)
     Route::post('/sessions/start', [MobileController::class, 'sessionStart']);
     Route::post('/sessions/end', [MobileController::class, 'sessionEnd']);
+    Route::post('/sessions/heartbeat', [MobileController::class, 'sessionHeartbeat']);
 
     // Anonymous location pings (no auth required by design)
     Route::post('/location-pings', [MobileController::class, 'locationPing']);
@@ -462,6 +479,7 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
 
     // Track notification clicks
     Route::post('/notifications/{campaign_id}/click', [NotificationCampaignController::class, 'trackClick']);
+    Route::post('/notifications/automated/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackAutomatedClick']);
 });
 
 

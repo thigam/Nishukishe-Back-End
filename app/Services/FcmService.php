@@ -10,7 +10,7 @@ class FcmService
     /**
      * Send a notification via FCM v1 API.
      */
-    public function sendNotification(array $tokens, string $title, string $body, string $link = '/')
+    public function sendNotification(array $tokens, string $title, string $body, string $link = '/', ?int $campaignId = null)
     {
         $serviceAccountPath = config('services.fcm.service_account_path');
         if (!$serviceAccountPath || !file_exists($serviceAccountPath)) {
@@ -42,6 +42,21 @@ class FcmService
         $fcmUrl = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
         foreach ($tokens as $token) {
+            // Ensure link is always absolute so it works in both the browser SW
+            // (clients.openWindow) and the Capacitor WebView navigation
+            $baseUrl = env('FRONTEND_URL', env('APP_URL', 'https://nishukishe.com'));
+            $absoluteLink = str_starts_with($link, 'http')
+                ? $link
+                : rtrim($baseUrl, '/') . (str_starts_with($link, '/') ? $link : '/' . $link);
+
+            $data = [
+                'link' => $absoluteLink,
+            ];
+
+            if ($campaignId) {
+                $data['campaign_id'] = (string) $campaignId;
+            }
+
             $payload = [
                 'message' => [
                     'token' => $token,
@@ -49,14 +64,17 @@ class FcmService
                         'title' => $title,
                         'body'  => $body,
                     ],
-                    'data' => [
-                        'link' => $link,
-                    ],
+                    'data' => $data,
                     'android' => [
                         'notification' => [
                             'sound'        => 'default',
                             'icon'         => 'ic_stat_bus',
                             'color'        => '#2563EB',
+                        ],
+                    ],
+                    'webpush' => [
+                        'fcm_options' => [
+                            'link' => $absoluteLink,
                         ],
                     ],
                 ],

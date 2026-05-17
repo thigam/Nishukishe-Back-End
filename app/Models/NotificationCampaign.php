@@ -15,6 +15,11 @@ class NotificationCampaign extends Model
         'recipients_count',
         'clicks_count',
         'created_by',
+        'scheduled_for',
+    ];
+
+    protected $casts = [
+        'scheduled_for' => 'datetime',
     ];
 
     public function creator()

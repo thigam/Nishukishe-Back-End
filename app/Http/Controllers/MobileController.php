@@ -50,8 +50,27 @@ class MobileController extends Controller
 
         // Only update if not already closed
         if ($session && is_null($session->closed_at)) {
-            $session->closed_at       = now();
-            $session->duration_seconds = now()->diffInSeconds($session->opened_at);
+            $session->closed_at        = now();
+            $session->duration_seconds = max(0, (int) abs(now()->diffInSeconds($session->opened_at)));
+            $session->save();
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Periodically update the duration of an open session.
+     */
+    public function sessionHeartbeat(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'session_id' => 'required|integer|exists:device_sessions,id',
+        ]);
+
+        $session = DeviceSession::find($validated['session_id']);
+
+        if ($session && is_null($session->closed_at)) {
+            $session->duration_seconds = max(0, (int) abs(now()->diffInSeconds($session->opened_at)));
             $session->save();
         }
 
@@ -73,8 +92,8 @@ class MobileController extends Controller
             'pings'     => 'required|array|max:20',
             'pings.*.lat'            => 'required|numeric|between:-90,90',
             'pings.*.lng'            => 'required|numeric|between:-180,180',
-            'pings.*.accuracy_meters'=> 'nullable|integer|min:0|max:9999',
-            'pings.*.speed_kmh'      => 'nullable|integer|min:0|max:500',
+            'pings.*.accuracy_meters'=> 'nullable|integer|min:0|max:100000',
+            'pings.*.speed_kmh'      => 'nullable|integer|min:0|max:1000',
             'pings.*.recorded_at'    => 'required|date',
         ]);
 
@@ -84,7 +103,7 @@ class MobileController extends Controller
             'lng'             => $p['lng'],
             'accuracy_meters' => $p['accuracy_meters'] ?? null,
             'speed_kmh'       => $p['speed_kmh'] ?? null,
-            'recorded_at'     => $p['recorded_at'],
+            'recorded_at'     => \Carbon\Carbon::parse($p['recorded_at'])->format('Y-m-d H:i:s'),
             'created_at'      => now(),
         ], $validated['pings']);
 
@@ -104,18 +123,20 @@ class MobileController extends Controller
     public function registerToken(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'device_id' => 'required|string|max:64',
-            'token'     => 'required|string',
-            'platform'  => 'nullable|string|max:20',
+            'device_id'  => 'required|string|max:64',
+            'token'      => 'required|string',
+            'platform'   => 'nullable|string|max:20',
+            'token_type' => 'nullable|in:fcm,web_push',
         ]);
 
         DeviceToken::updateOrCreate(
             ['device_id' => $validated['device_id']],
             [
-                'user_id'   => $request->user()?->id,
-                'token'     => $validated['token'],
-                'platform'  => $validated['platform'] ?? 'android',
-                'is_active' => true,
+                'user_id'    => $request->user()?->id,
+                'token'      => $validated['token'],
+                'platform'   => $validated['platform'] ?? 'android',
+                'token_type' => $validated['token_type'] ?? 'fcm',
+                'is_active'  => true,
             ]
         );
 

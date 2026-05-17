@@ -21,6 +21,10 @@ class Incident extends Model
         'reported_at',
         'upvotes',
         'downvotes',
+        'start_time',
+        'end_time',
+        'path_coordinates',
+        'incident_sub_type',
     ];
 
     protected $casts = [
@@ -28,6 +32,9 @@ class Incident extends Model
         'lng' => 'float',
         'is_verified' => 'boolean',
         'reported_at' => 'datetime',
+        'start_time' => 'datetime',
+        'end_time' => 'datetime',
+        'path_coordinates' => 'array',
     ];
 
     public function driver()

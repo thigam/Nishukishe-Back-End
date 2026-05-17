@@ -30,6 +30,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('emails:send-daily-summary')->dailyAt('23:59');
+        $schedule->command('app:send-incident-notifications')->everyTenMinutes();
+        $schedule->command('app:send-scheduled-notifications')->everyMinute();
     }
 
     /**
