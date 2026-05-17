@@ -72,6 +72,11 @@ class FcmService
                             'color'        => '#2563EB',
                         ],
                     ],
+                    'webpush' => [
+                        'fcm_options' => [
+                            'link' => $absoluteLink,
+                        ],
+                    ],
                 ],
             ];
 
