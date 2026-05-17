@@ -92,8 +92,8 @@ class MobileController extends Controller
             'pings'     => 'required|array|max:20',
             'pings.*.lat'            => 'required|numeric|between:-90,90',
             'pings.*.lng'            => 'required|numeric|between:-180,180',
-            'pings.*.accuracy_meters'=> 'nullable|integer|min:0|max:9999',
-            'pings.*.speed_kmh'      => 'nullable|integer|min:0|max:500',
+            'pings.*.accuracy_meters'=> 'nullable|integer|min:0|max:100000',
+            'pings.*.speed_kmh'      => 'nullable|integer|min:0|max:1000',
             'pings.*.recorded_at'    => 'required|date',
         ]);
 
@@ -103,7 +103,7 @@ class MobileController extends Controller
             'lng'             => $p['lng'],
             'accuracy_meters' => $p['accuracy_meters'] ?? null,
             'speed_kmh'       => $p['speed_kmh'] ?? null,
-            'recorded_at'     => $p['recorded_at'],
+            'recorded_at'     => \Carbon\Carbon::parse($p['recorded_at'])->format('Y-m-d H:i:s'),
             'created_at'      => now(),
         ], $validated['pings']);
 
