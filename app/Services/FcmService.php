@@ -90,6 +90,14 @@ class FcmService
 
             $response = Http::withToken($accessToken)->post($fcmUrl, $payload);
 
+            Log::info('FCM request/response debugging', [
+                'token' => substr($token, 0, 20) . '...',
+                'url' => $fcmUrl,
+                'payload' => $payload,
+                'status' => $response->status(),
+                'response' => $response->json(),
+	    ]);
+
             if ($response->successful()) {
                 $sent++;
             } else {
