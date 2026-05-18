@@ -482,25 +482,5 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
     Route::post('/notifications/automated/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackAutomatedClick']);
 });
 
-Route::get('/test-fcm', function () {
-    $tokens = \App\Models\DeviceToken::where('is_active', true)->pluck('token')->toArray();
-    if (empty($tokens)) {
-        return response()->json([
-            'message' => 'No active tokens found in the database.',
-            'tokens_count' => 0
-        ]);
-    }
-    
-    $fcm = new \App\Services\FcmService();
-    $result = $fcm->sendNotification($tokens, 'Test Push Title', 'This is a test notification from Nishukishe!', 'https://staging.nishukishe.com/');
-    
-    return response()->json([
-        'message' => 'FCM Test Dispatch executed.',
-        'active_tokens_found' => count($tokens),
-        'result' => $result,
-        'tokens' => array_map(function($t) { return substr($t, 0, 20) . '...'; }, $tokens)
-    ]);
-});
-
 
 
