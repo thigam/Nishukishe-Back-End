@@ -67,22 +67,9 @@ class FcmService
                     'data' => $data,
                     'android' => [
                         'notification' => [
-                            'title'        => $title,
-                            'body'         => $body,
                             'sound'        => 'default',
                             'icon'         => 'ic_stat_bus',
                             'color'        => '#2563EB',
-                        ],
-                    ],
-                    'webpush' => [
-                        'fcm_options' => [
-                            'link' => $absoluteLink,
-			],
-                        'notification' => [
-                            'title' => $title,
-                            'body'  => $body,
-                            'icon'  => '/logo.png',
-                            'badge' => '/logo.png',
                         ],
                     ],
                 ],
