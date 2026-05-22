@@ -17,16 +17,18 @@ class CommuterOccurrenceController extends Controller
 
     public function index(Request $request)
     {
-        // Include: incidents from last 6 hours OR any that are still upcoming (scheduled future events)
+        // Include:
+        // 1. Incidents reported in the last 6 hours with no end time (regular temporary incidents)
+        // 2. Active scheduled or long-running incidents (end_time in the future)
+        // 3. Upcoming scheduled incidents (start_time in the future)
         $query = Incident::with('user')
             ->where(function ($q) {
-                $q->where('reported_at', '>=', now()->subHours(6))
-                  ->orWhere('start_time', '>=', now()); // Include future scheduled incidents
-            })
-            // Also exclude incidents that have already ended
-            ->where(function ($q) {
-                $q->whereNull('end_time')
-                  ->orWhere('end_time', '>=', now());
+                $q->where(function ($sub) {
+                    $sub->where('reported_at', '>=', now()->subHours(6))
+                        ->whereNull('end_time');
+                })
+                ->orWhere('end_time', '>=', now())
+                ->orWhere('start_time', '>=', now());
             });
 
         // Geographic Bounding Filter
