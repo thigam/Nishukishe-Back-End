@@ -22,8 +22,8 @@ class NotificationStatsController extends Controller
     public function automatedStats(Request $request)
     {
         $bin   = $request->query('bin', 'day');
-        $start = $request->query('start') ? Carbon::parse($request->query('start')) : Carbon::now()->subDays(30);
-        $end   = $request->query('end')   ? Carbon::parse($request->query('end'))   : Carbon::now();
+        $start = $request->query('start') ? Carbon::parse($request->query('start'))->startOfDay() : Carbon::now()->subDays(30)->startOfDay();
+        $end   = $request->query('end')   ? Carbon::parse($request->query('end'))->endOfDay()   : Carbon::now()->endOfDay();
 
         // ── Overall totals ────────────────────────────────────────────────────
         $baseQuery   = IncidentNotification::whereBetween('incident_notifications.created_at', [$start, $end]);

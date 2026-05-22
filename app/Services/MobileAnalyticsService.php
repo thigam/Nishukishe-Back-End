@@ -12,8 +12,8 @@ class MobileAnalyticsService
 {
     public function getSummary(?string $start = null, ?string $end = null): array
     {
-        $startDate = $start ? Carbon::parse($start) : Carbon::now()->subDays(30);
-        $endDate = $end ? Carbon::parse($end) : Carbon::now();
+        $startDate = $start ? Carbon::parse($start)->startOfDay() : Carbon::now()->subDays(30)->startOfDay();
+        $endDate = $end ? Carbon::parse($end)->endOfDay() : Carbon::now()->endOfDay();
 
         $sessionQuery = DeviceSession::whereBetween('created_at', [$startDate, $endDate]);
         
@@ -35,8 +35,8 @@ class MobileAnalyticsService
 
     public function getSessionSeries(?string $start = null, ?string $end = null): array
     {
-        $startDate = $start ? Carbon::parse($start) : Carbon::now()->subDays(30);
-        $endDate = $end ? Carbon::parse($end) : Carbon::now();
+        $startDate = $start ? Carbon::parse($start)->startOfDay() : Carbon::now()->subDays(30)->startOfDay();
+        $endDate = $end ? Carbon::parse($end)->endOfDay() : Carbon::now()->endOfDay();
 
         $data = DeviceSession::whereBetween('created_at', [$startDate, $endDate])
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'))
