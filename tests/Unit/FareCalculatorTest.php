@@ -21,9 +21,9 @@ class FareCalculatorTest extends TestCase
             120.0
         );
 
-        $this->assertSame(60.0, $result['fare']);
-        $this->assertSame(60.0, $result['off_peak_fare']);
-        $this->assertSame(90.0, $result['peak_fare']);
+        $this->assertSame(20.0, $result['fare']);
+        $this->assertSame(20.0, $result['off_peak_fare']);
+        $this->assertSame(30.0, $result['peak_fare']);
         $this->assertFalse($result['requires_manual_fare']);
     }
 
@@ -40,9 +40,9 @@ class FareCalculatorTest extends TestCase
             140.0
         );
 
-        $this->assertSame(100.0, $result['fare']);
-        $this->assertSame(100.0, $result['off_peak_fare']);
-        $this->assertSame(130.0, $result['peak_fare']);
+        $this->assertSame(70.0, $result['fare']);
+        $this->assertSame(70.0, $result['off_peak_fare']);
+        $this->assertSame(80.0, $result['peak_fare']);
         $this->assertFalse($result['requires_manual_fare']);
     }
 
@@ -61,7 +61,7 @@ class FareCalculatorTest extends TestCase
             false
         );
 
-        $this->assertSame(210.0, $result['fare']);
+        $this->assertSame(160.0, $result['fare']);
         $this->assertTrue($result['is_peak_fare']);
         $this->assertFalse($result['requires_manual_fare']);
     }
@@ -98,8 +98,42 @@ class FareCalculatorTest extends TestCase
         );
 
         $this->assertSame($result['peak_fare'], $result['fare']);
-        $this->assertSame(150.0, $result['peak_fare']);
-        $this->assertSame(110.0, $result['off_peak_fare']);
+        $this->assertSame(60.0, $result['peak_fare']);
+        $this->assertSame(50.0, $result['off_peak_fare']);
         $this->assertTrue($result['is_peak_fare']);
+    }
+
+    public function test_missing_total_distance_triggers_ask_conductor(): void
+    {
+        $service = new FareCalculator();
+
+        $result = $service->calculate(
+            10.0,
+            null,
+            Carbon::create(2024, 1, 1, 11, 0, 0, 'Africa/Nairobi'),
+            false,
+            150.0,
+            120.0
+        );
+
+        $this->assertTrue($result['requires_manual_fare']);
+        $this->assertSame(0.0, $result['fare']);
+    }
+
+    public function test_missing_stored_fares_triggers_ask_conductor(): void
+    {
+        $service = new FareCalculator();
+
+        $result = $service->calculate(
+            10.0,
+            30.0,
+            Carbon::create(2024, 1, 1, 11, 0, 0, 'Africa/Nairobi'),
+            false,
+            null,
+            null
+        );
+
+        $this->assertTrue($result['requires_manual_fare']);
+        $this->assertSame(0.0, $result['fare']);
     }
 }

@@ -419,6 +419,12 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::post('/mark-done', [\App\Http\Controllers\SuggestedRouteController::class, 'markDone']);
     });
 
+    // Reported Wrong Info (Admin)
+    Route::prefix('admin/reported-wrong-info')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_route_suggestions')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ReportedWrongInfoController::class, 'index']);
+        Route::post('/{id}/resolve', [\App\Http\Controllers\ReportedWrongInfoController::class, 'resolve']);
+    });
+
     // Mobile Analytics
     Route::get('admin/mobile-analytics', [\App\Http\Controllers\MobileAnalyticsController::class, 'index'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
@@ -435,6 +441,7 @@ Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function 
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
+Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
 
 // Commuter Occurrences
 Route::prefix('occurrences')->group(function () {
