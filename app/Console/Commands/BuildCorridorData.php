@@ -26,7 +26,7 @@ class BuildCorridorData extends Command
         [-1.2836, 36.8177]
     ];
 
-    private const L2_RES_CBD = 8, L2_RES_ELSE = 7, L1_RES = 7, L0_RES = 6, BUS = 22.0;
+    private const L2_RES_CBD = 8, L2_RES_ELSE = 7, L1_RES = 7, L0_RES = 6, BUS = 55.0;
 
     public function handle()
     {

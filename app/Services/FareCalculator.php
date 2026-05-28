@@ -6,49 +6,6 @@ use Carbon\Carbon;
 
 class FareCalculator
 {
-    /**
-     * Distance tier configuration for sacco fares.
-     *
-     * Tiers are expressed as percentages of the full route distance so that a
-     * traveler covering half of the route pays roughly half of the sacco-
-     * provided fare. When the sacco fare is missing, the legacy fallback
-     * amounts are used directly (without applying the fractions) to preserve
-     * previous defaults.
-     */
-    private const DISTANCE_PERCENTAGE_TIERS = [
-        [
-            'limit_ratio' => 0.25,
-            'off_peak_fraction' => 0.5,
-            'peak_fraction' => 0.6,
-            'fallback_off_peak' => 40.0,
-            'fallback_peak' => 60.0,
-        ],
-        [
-            'limit_ratio' => 0.50,
-            'off_peak_fraction' => 0.7,
-            'peak_fraction' => 0.8,
-            'fallback_off_peak' => 60.0,
-            'fallback_peak' => 80.0,
-        ],
-        [
-            'limit_ratio' => 0.75,
-            'off_peak_fraction' => 0.9,
-            'peak_fraction' => 1.0,
-            'fallback_off_peak' => 80.0,
-            'fallback_peak' => 100.0,
-        ],
-        [
-            'limit_ratio' => 1.0,
-            'off_peak_fraction' => 1.0,
-            'peak_fraction' => 1.0,
-            'fallback_off_peak' => 110.0,
-            'fallback_peak' => 130.0,
-        ],
-    ];
-
-    /**
-     * Fallback manual-distance guard when the total route length is unknown.
-     */
     private const ABSOLUTE_MANUAL_DISTANCE_KM = 45.0;
 
     private const CBD_POLYGON = [
@@ -72,16 +29,40 @@ class FareCalculator
         bool $alightingInCbd = false
     ): array {
         $distanceKm = max(0.0, $distanceKm);
-        $distanceRatio = $this->distanceRatio($distanceKm, $totalDistanceKm);
-        $tier = $this->matchTierByRatio($distanceRatio);
-        $requiresManual = $this->requiresManualFare($distanceRatio, $distanceKm, $totalDistanceKm);
 
-        $offPeak = $this->fractionalFare($tier, $storedOffPeakFare, 'off_peak_fraction', 'fallback_off_peak');
-        $peakBase = $storedPeakFare ?? $storedOffPeakFare;
-        $peak = $this->fractionalFare($tier, $peakBase, 'peak_fraction', 'fallback_peak');
+        // Scenario 1: Sacco route has no fare or total distance is unknown
+        if (($storedOffPeakFare === null && $storedPeakFare === null) || $totalDistanceKm === null || $totalDistanceKm <= 0.0) {
+            return [
+                'fare' => 0.0,
+                'peak_fare' => 0.0,
+                'off_peak_fare' => 0.0,
+                'distance_km' => round($distanceKm, 2),
+                'requires_manual_fare' => true, // Triggers "Ask conductor"
+                'is_peak_fare' => false,
+            ];
+        }
 
+        // Scenario 2: Calculate linear fare
+        $distanceRatio = $distanceKm / $totalDistanceKm;
+        $requiresManual = ($distanceKm > self::ABSOLUTE_MANUAL_DISTANCE_KM || $distanceRatio > 1.0);
+
+        // Cap ratio at 100% of route
+        $cappedRatio = min(1.0, max(0.0, $distanceRatio));
+
+        // Use off peak as the base if either is missing
+        $baseOffPeak = $storedOffPeakFare ?? $storedPeakFare;
+        $basePeak = $storedPeakFare ?? $storedOffPeakFare;
+
+        $offPeak = $cappedRatio * $baseOffPeak;
+        $peak = $cappedRatio * $basePeak;
+
+        // Round off-peak to nearest 10, peak rounded up to nearest 10
         $offPeak = $this->roundToNearestTen($offPeak);
         $peak = $this->roundUpToNearestTen($peak);
+
+        // Ensure minimum fare is 20 KES
+        $offPeak = max(20.0, $offPeak);
+        $peak = max(20.0, $peak);
 
         if ($peak < $offPeak) {
             $peak = $offPeak;
@@ -158,17 +139,6 @@ class FareCalculator
         return ceil($value / 10.0) * 10.0;
     }
 
-    private function fractionalFare(array $tier, ?float $baseFare, string $fractionKey, string $fallbackKey): float
-    {
-        if ($baseFare === null) {
-            return $tier[$fallbackKey];
-        }
-
-        $fraction = $tier[$fractionKey];
-
-        return $baseFare * $fraction;
-    }
-
     private function pointInPolygon(float $lat, float $lng, array $polygon): bool
     {
         $inside = false;
@@ -186,47 +156,5 @@ class FareCalculator
         }
 
         return $inside;
-    }
-
-    private function matchTierByRatio(float $distanceRatio): array
-    {
-        foreach (self::DISTANCE_PERCENTAGE_TIERS as $tier) {
-            if ($distanceRatio <= $tier['limit_ratio']) {
-                return $tier;
-            }
-        }
-
-        return self::DISTANCE_PERCENTAGE_TIERS[array_key_last(self::DISTANCE_PERCENTAGE_TIERS)];
-    }
-
-    private function distanceRatio(float $distanceKm, ?float $totalDistanceKm): float
-    {
-        if ($totalDistanceKm !== null && $totalDistanceKm > 0.0) {
-            return $distanceKm / $totalDistanceKm;
-        }
-
-        // If the total route length is unknown, assume 100% of the route so the
-        // fare tiers fall back to the upper bound instead of undercharging.
-        return 1.0;
-    }
-
-    private function requiresManualFare(float $distanceRatio, float $distanceKm, ?float $totalDistanceKm): bool
-    {
-        if ($distanceRatio > $this->maxTierRatio()) {
-            return true;
-        }
-
-        // Retain the legacy manual flag when the total route distance is
-        // unknown and the trip exceeds the previous hard distance guard.
-        if ($totalDistanceKm === null) {
-            return $distanceKm > self::ABSOLUTE_MANUAL_DISTANCE_KM;
-        }
-
-        return false;
-    }
-
-    private function maxTierRatio(): float
-    {
-        return self::DISTANCE_PERCENTAGE_TIERS[array_key_last(self::DISTANCE_PERCENTAGE_TIERS)]['limit_ratio'];
     }
 }

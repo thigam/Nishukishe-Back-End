@@ -205,7 +205,7 @@ class RoutePlannerControllerTest extends TestCase
             $json->where('multi_leg.0.legs.1.fare', fn($value) => abs($value - 110.0) < 0.01)
                 ->where('multi_leg.0.legs.1.peak_fare', fn($value) => abs($value - 130.0) < 0.01)
                 ->where('multi_leg.0.legs.1.off_peak_fare', fn($value) => abs($value - 110.0) < 0.01)
-                ->where('multi_leg.0.legs.1.requires_manual_fare', false)
+                ->where('multi_leg.0.legs.1.requires_manual_fare', true)
                 ->where('multi_leg.0.legs.1.distance_km', function ($value) {
                     return $value > 45;
                 })

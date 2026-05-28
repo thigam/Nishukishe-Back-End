@@ -33,19 +33,16 @@ class NotificationStatsController extends Controller
         $ctr         = $totalSent > 0 ? round(($totalClicks / $totalSent) * 100, 1) : 0;
 
         // ── Mobile vs Web split ──────────────────────────────────────────────
-        // Join device_tokens to distinguish fcm (native) vs web_push (browser)
+        // Differentiate by device_id prefix: web device IDs are prefixed with 'web-'
         $mobileSent = (clone $baseQuery)
-            ->join('device_tokens', function ($join) {
-                $join->on('incident_notifications.device_id', '=', 'device_tokens.device_id')
-                     ->where('device_tokens.token_type', 'fcm');
+            ->where(function ($q) {
+                $q->whereNull('incident_notifications.device_id')
+                  ->orWhere('incident_notifications.device_id', 'not like', 'web-%');
             })
             ->count();
 
         $webSent = (clone $baseQuery)
-            ->join('device_tokens', function ($join) {
-                $join->on('incident_notifications.device_id', '=', 'device_tokens.device_id')
-                     ->where('device_tokens.token_type', 'web_push');
-            })
+            ->where('incident_notifications.device_id', 'like', 'web-%')
             ->count();
 
         // ── Time-series (binned by day or month) ─────────────────────────────

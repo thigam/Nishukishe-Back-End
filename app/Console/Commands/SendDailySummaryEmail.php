@@ -147,6 +147,14 @@ class SendDailySummaryEmail extends Command
         // 12. Suggested routes today
         $suggestedRoutesCount = SuggestedRoute::whereDate('created_at', $today)->count();
 
+        // 13. Active notifications enabled users (web and mobile)
+        $activeWebNotifications = \App\Models\DeviceToken::where('is_active', true)
+            ->where('token_type', 'web_push')
+            ->count();
+        $activeMobileNotifications = \App\Models\DeviceToken::where('is_active', true)
+            ->where('token_type', 'fcm')
+            ->count();
+
         $stats = [
             'searches' => $searches,
             'unique_visitors' => $uniqueVisitors,
@@ -172,6 +180,8 @@ class SendDailySummaryEmail extends Command
                 'discover_page' => $discoverVisits,
             ],
             'suggested_routes_count' => $suggestedRoutesCount,
+            'active_web_notifications' => $activeWebNotifications,
+            'active_mobile_notifications' => $activeMobileNotifications,
         ];
 
         Mail::to('thigamatthew7@gmail.com')->send(new AdminDailySummaryEmail($stats));

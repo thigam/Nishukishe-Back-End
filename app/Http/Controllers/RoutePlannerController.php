@@ -27,7 +27,7 @@ use App\Services\StationRaptor; // NEW
 class RoutePlannerController extends Controller
 {
     // === Tunables for A* ===
-    private const BUS_SPEED_KMPH = 22.0; // optimistic to keep heuristic admissible
+    private const BUS_SPEED_KMPH = 55.0; // optimistic to keep heuristic admissible
     private const WALK_SPEED_KMPH = 3;
     private const WALK_WEIGHT = 1.0;  // walking is perceived as longer
     private const TRANSFER_PENALTY = 35.0;  // minutes equivalent per transfer
@@ -297,6 +297,16 @@ class RoutePlannerController extends Controller
 
         // NEW: Filter out redundant "Same Sacco" transfers (e.g. Bus A -> Bus A)
         $enriched = $this->filterRedundantTransfers($enriched);
+
+        // NEW: Completely disqualify routes using long-distance routes for a tiny fraction
+        $enriched = array_values(array_filter($enriched, function ($route) {
+            foreach ($route['legs'] ?? [] as $leg) {
+                if (!empty($leg['is_long_distance_fraction'])) {
+                    return false;
+                }
+            }
+            return true;
+        }));
 
         $unique = $this->dedupeMultiLeg($enriched);
 
@@ -693,7 +703,10 @@ class RoutePlannerController extends Controller
             'variations' => $variations,
             'has_variations' => (bool) ($route->has_variations && !empty($variations)),
             'trip' => $trip,
-            'is_long_distance_fraction' => ($totalRouteDistanceKm > 50.0 && ($distanceKm / max($totalRouteDistanceKm, 1)) < 0.20),
+            'is_long_distance_fraction' => (
+                ($totalRouteDistanceKm > 50.0 && ($distanceKm / max($totalRouteDistanceKm, 1)) < 0.20)
+                || (($route->peak_fare > 200.0 || $route->off_peak_fare > 200.0) && $distanceKm < 45.0)
+            ),
         ];
 
         // Penalize the duration if it's a long distance matatu for a small fraction

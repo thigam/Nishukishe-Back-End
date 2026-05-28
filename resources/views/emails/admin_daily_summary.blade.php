@@ -9,6 +9,8 @@
         - **Unique Visitors:** {{ $stats['unique_visitors'] }}
         - **Incidents Reported:** {{ $stats['incidents'] }}
         - **Routes Suggested Today:** {{ $stats['suggested_routes_count'] }}
+        - **Web Notification Users:** {{ $stats['active_web_notifications'] }}
+        - **Mobile Notification Users:** {{ $stats['active_mobile_notifications'] }}
     </x-mail::panel>
 
     <x-mail::panel>
