@@ -413,7 +413,6 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
     });
 
     // Suggested Routes
-    Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
     Route::prefix('admin/suggested-routes')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_route_suggestions')->group(function () {
         Route::get('/', [\App\Http\Controllers\SuggestedRouteController::class, 'index']);
         Route::post('/mark-done', [\App\Http\Controllers\SuggestedRouteController::class, 'markDone']);
@@ -441,6 +440,7 @@ Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function 
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
+Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
 Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
 
 // Commuter Occurrences

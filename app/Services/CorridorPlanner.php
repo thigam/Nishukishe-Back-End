@@ -226,7 +226,7 @@ class CorridorPlanner
         }
 
         $km = $this->haversineKm((float)$a->lat, (float)$a->lng, (float)$b->lat, (float)$b->lng);
-        $speed = 65.0; // km/h, same as BUS in BuildCorridorData
+        $speed = 55.0; // km/h, same as BUS in BuildCorridorData
         return ($km / $speed) * 60.0;
     }
 
