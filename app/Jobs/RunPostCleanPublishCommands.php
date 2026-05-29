@@ -33,8 +33,8 @@ class RunPostCleanPublishCommands implements ShouldQueue
             Artisan::call('routes:backfill-route-stop');
             Log::info('routes:backfill-route-stop finished');
 
-            Artisan::call('routes:seed-flag');
-            Log::info('routes:seed-flag finished');
+            Artisan::call('routes:seed-flags');
+            Log::info('routes:seed-flags finished');
 
             // Artisan::call('transfers:build', ['--host' => config('services.osrm.host'), '--cap' => 600]);
 

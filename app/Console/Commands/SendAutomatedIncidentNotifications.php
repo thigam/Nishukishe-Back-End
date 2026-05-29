@@ -50,8 +50,11 @@ class SendAutomatedIncidentNotifications extends Command
             ->get()
             ->unique('device_id');
 
-        // Get users with saved notification_locations
-        $usersWithLocations = User::whereNotNull('notification_locations')->get();
+        // Get users with saved notification_locations or notification_roads
+        $usersWithPreferences = User::where(function ($query) {
+            $query->whereNotNull('notification_locations')
+                  ->orWhereNotNull('notification_roads');
+        })->get();
 
         // ── Build a map: identifier → best candidate ───────────────────────────
         // Key: 'device:{device_id}' or 'user:{user_id}'
@@ -78,28 +81,55 @@ class SendAutomatedIncidentNotifications extends Command
                 }
             }
 
-            // B. Check saved user locations
-            foreach ($usersWithLocations as $user) {
-                $locations = is_string($user->notification_locations)
-                    ? json_decode($user->notification_locations, true)
-                    : $user->notification_locations;
+            // B. Check saved user locations and roads
+            foreach ($usersWithPreferences as $user) {
+                $matched = false;
 
-                if (!is_array($locations)) continue;
+                // Check locations first
+                if ($user->notification_locations) {
+                    $locations = is_string($user->notification_locations)
+                        ? json_decode($user->notification_locations, true)
+                        : $user->notification_locations;
 
-                foreach ($locations as $loc) {
-                    if (!isset($loc['lat'], $loc['lng'])) continue;
+                    if (is_array($locations)) {
+                        foreach ($locations as $loc) {
+                            if (!isset($loc['lat'], $loc['lng'])) continue;
 
-                    if ($this->calculateDistance($incident->lat, $incident->lng, $loc['lat'], $loc['lng']) <= 2) {
-                        $key = "user:{$user->id}";
-                        if (!isset($bestForCandidate[$key]) || $score > $bestForCandidate[$key]['score']) {
-                            $bestForCandidate[$key] = [
-                                'incident'  => $incident,
-                                'score'     => $score,
-                                'device_id' => null,
-                                'user_id'   => $user->id,
-                            ];
+                            if ($this->calculateDistance($incident->lat, $incident->lng, $loc['lat'], $loc['lng']) <= 2) {
+                                $matched = true;
+                                break;
+                            }
                         }
-                        break; // Only need one matching location per user
+                    }
+                }
+
+                // Check roads if not already matched
+                if (!$matched && $user->notification_roads && !empty($incident->roads)) {
+                    $roads = is_string($user->notification_roads)
+                        ? json_decode($user->notification_roads, true)
+                        : $user->notification_roads;
+
+                    if (is_array($roads)) {
+                        foreach ($roads as $roadName) {
+                            foreach ($incident->roads as $incidentRoad) {
+                                if (strcasecmp(trim($roadName), trim($incidentRoad)) === 0) {
+                                    $matched = true;
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($matched) {
+                    $key = "user:{$user->id}";
+                    if (!isset($bestForCandidate[$key]) || $score > $bestForCandidate[$key]['score']) {
+                        $bestForCandidate[$key] = [
+                            'incident'  => $incident,
+                            'score'     => $score,
+                            'device_id' => null,
+                            'user_id'   => $user->id,
+                        ];
                     }
                 }
             }

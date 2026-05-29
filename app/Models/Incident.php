@@ -25,6 +25,7 @@ class Incident extends Model
         'end_time',
         'path_coordinates',
         'incident_sub_type',
+        'roads',
     ];
 
     protected $casts = [
@@ -35,6 +36,7 @@ class Incident extends Model
         'start_time' => 'datetime',
         'end_time' => 'datetime',
         'path_coordinates' => 'array',
+        'roads' => 'array',
     ];
 
     public function driver()

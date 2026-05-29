@@ -30,6 +30,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'google_id',
         'max_notifications_per_day',
         'notification_locations',
+        'notification_roads',
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_active' => 'boolean',
         'is_approved' => 'boolean',
         'notification_locations' => 'array',
+        'notification_roads' => 'array',
     ];
 
     protected $hidden = [

@@ -442,6 +442,7 @@ Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'searc
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
 Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
 Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
+Route::get('roads/suggest', [\App\Http\Controllers\RoadController::class, 'suggest']);
 
 // Commuter Occurrences
 Route::prefix('occurrences')->group(function () {
