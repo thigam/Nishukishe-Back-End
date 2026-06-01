@@ -60,6 +60,7 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth
         Route::get('/google/callback', 'handleGoogleCallback')->name('auth.google.callback');
 
         Route::middleware('auth:sanctum')->group(function () {
+            Route::get('/user', 'getUser')->name('api.auth.user');
             Route::get('/google/link', 'redirectToGoogleForLinking')->name('auth.google.link');
             Route::delete('/google/link', 'unlinkGoogle')->name('auth.google.unlink');
             Route::get('/google/status', 'googleStatus')->name('auth.google.status');
@@ -448,7 +449,7 @@ Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'searc
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
 Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
 Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
-Route::get('roads/suggest', [\App\Http\Controllers\RoadController::class, 'suggest']);
+Route::get('roads/suggest', [\App\Http\Controllers\RoadController::class, 'suggest'])->middleware([CorsMiddleware::class]);
 
 // Commuter Occurrences
 Route::prefix('occurrences')->group(function () {
