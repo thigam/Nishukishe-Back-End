@@ -199,6 +199,12 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
                 ->name('comments.destroy');
         });
 
+        // User devices management
+        Route::get('user/devices', [MobileController::class, 'getUserDevices']);
+        Route::put('user/devices/{id}/toggle', [MobileController::class, 'toggleDeviceActive']);
+        Route::delete('user/devices/{id}', [MobileController::class, 'deleteDevice']);
+
+
         Route::get('admin/refunds', [\App\Http\Controllers\Admin\RefundController::class, 'index']);
         Route::post('admin/refunds', [\App\Http\Controllers\Admin\RefundController::class, 'store']);
         Route::put('admin/refunds/{booking}', [\App\Http\Controllers\Admin\RefundController::class, 'update']);
