@@ -11,6 +11,36 @@
         - **Routes Suggested Today:** {{ $stats['suggested_routes_count'] }}
         - **Web Notification Users:** {{ $stats['active_web_notifications'] }}
         - **Mobile Notification Users:** {{ $stats['active_mobile_notifications'] }}
+        - **Notifications Sent Today:** {{ $stats['notifications_sent'] }}
+        - **Notifications Clicked Today:** {{ $stats['notifications_clicked'] }}
+    </x-mail::panel>
+
+    <x-mail::panel>
+        ### Search Error Reports (Empty Searches)
+        - **Total Empty Searches:** {{ $stats['empty_searches_count'] }}
+        
+        **Missing Routes Queried:**
+        @if(count($stats['missing_routes']) > 0)
+            @foreach($stats['missing_routes'] as $route)
+                - {{ $route }}
+            @endforeach
+        @else
+            - None recorded today.
+        @endif
+    </x-mail::panel>
+
+    <x-mail::panel>
+        ### Client-Side Error Logs
+        - **Total Errors Logged:** {{ $stats['client_errors_count'] }}
+        
+        **Error Message Samples:**
+        @if(count($stats['client_error_samples']) > 0)
+            @foreach($stats['client_error_samples'] as $sample)
+                - **[{{ $sample['count'] }}x]** {{ Str::limit($sample['message'], 100) }}
+            @endforeach
+        @else
+            - No client errors logged today.
+        @endif
     </x-mail::panel>
 
     <x-mail::panel>
