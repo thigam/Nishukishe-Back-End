@@ -130,10 +130,18 @@ class MobileController extends Controller
             'device_name' => 'nullable|string|max:100',
         ]);
 
+        $user = $request->user();
+        if (!$user && $request->bearerToken()) {
+            $token = \Laravel\Sanctum\PersonalAccessToken::findToken($request->bearerToken());
+            if ($token) {
+                $user = $token->tokenable;
+            }
+        }
+
         DeviceToken::updateOrCreate(
             ['device_id' => $validated['device_id']],
             [
-                'user_id'     => $request->user()?->id,
+                'user_id'     => $user?->id,
                 'token'       => $validated['token'],
                 'platform'    => $validated['platform'] ?? 'android',
                 'token_type'  => $validated['token_type'] ?? 'fcm',
