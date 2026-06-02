@@ -20,26 +20,45 @@ class FetchKenyaRoads extends Command
         // We fetch ways with highway = motorway, trunk, primary, secondary having a name tag
         $query = '[out:json][timeout:300];way["highway"~"motorway|trunk|primary|secondary"]["name"](-4.72,33.91,4.63,41.91);out geom;';
 
-        $url = 'https://lz4.overpass-api.de/api/interpreter';
+        $urls = [
+            'https://overpass-api.de/api/interpreter',
+            'https://overpass.kumi.systems/api/interpreter',
+            'https://lz4.overpass-api.de/api/interpreter',
+            'https://z.overpass-api.de/api/interpreter',
+        ];
 
-        $this->info("Sending query to Overpass API: {$url}");
+        $elements = [];
+
+        foreach ($urls as $url) {
+            $this->info("Sending query to Overpass API: {$url}");
+
+            try {
+                $response = Http::withHeaders([
+                    'User-Agent' => 'NishukisheRoadImport/1.0 (contact@nishukishe.com)',
+                    'Accept' => 'application/json',
+                ])->timeout(180)
+                  ->asForm()
+                  ->post($url, ['data' => $query]);
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    if (isset($data['elements'])) {
+                        $elements = $data['elements'];
+                        break;
+                    }
+                } else {
+                    $this->warn("Overpass API endpoint {$url} failed with status " . $response->status());
+                }
+            } catch (\Exception $e) {
+                $this->warn("Overpass API endpoint {$url} connection failed: " . $e->getMessage());
+            }
+        }
 
         try {
-            $response = Http::withHeaders([
-                'User-Agent' => 'NishukisheRoadImport/1.0 (contact@nishukishe.com)',
-                'Accept' => 'application/json',
-            ])->timeout(300)
-              ->asForm()
-              ->post($url, ['data' => $query]);
-
-            if (!$response->successful()) {
-                $this->error("Overpass API returned status code " . $response->status());
-                $this->error($response->body());
+            if (empty($elements)) {
+                $this->error("All Overpass API endpoints failed or returned empty. Please try again later.");
                 return self::FAILURE;
             }
-
-            $data = $response->json();
-            $elements = $data['elements'] ?? [];
 
             $total = count($elements);
             $this->info("Successfully fetched {$total} road elements. Processing...");
