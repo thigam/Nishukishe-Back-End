@@ -13,7 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withSchedule(function (Schedule $schedule) {
         $schedule->command('emails:send-daily-summary')->dailyAt('23:59');
-        $schedule->command('app:send-incident-notifications')->cron('*/20 * * * *');
+        $schedule->command('app:send-incident-notifications')->everyMinute();
         $schedule->command('app:send-scheduled-notifications')->everyMinute();
     })
     ->withMiddleware(function (Middleware $middleware) {

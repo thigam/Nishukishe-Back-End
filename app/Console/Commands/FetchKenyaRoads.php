@@ -14,6 +14,9 @@ class FetchKenyaRoads extends Command
 
     public function handle()
     {
+        // Increase memory limit to handle large JSON parsing from Overpass API
+        ini_set('memory_limit', '512M');
+
         $this->info("Fetching major Kenyan roads from Overpass API...");
 
         // Kenya Bounding Box: Min Lat: -4.72, Min Lng: 33.91, Max Lat: 4.63, Max Lng: 41.91
