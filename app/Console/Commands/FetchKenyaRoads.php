@@ -70,10 +70,16 @@ class FetchKenyaRoads extends Command
 
             $inserted = 0;
             $updated = 0;
+            $processed = 0;
 
             DB::beginTransaction();
 
             foreach ($elements as $element) {
+                $processed++;
+                if ($processed % 500 === 0) {
+                    $this->info("Processed {$processed}/{$total} road elements...");
+                }
+
                 if (($element['type'] ?? '') !== 'way') {
                     continue;
                 }
