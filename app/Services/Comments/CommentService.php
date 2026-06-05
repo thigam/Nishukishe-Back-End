@@ -9,6 +9,7 @@ use App\Models\Sacco;
 use App\Models\TembeaOperatorProfile;
 use App\Models\TourEvent;
 use App\Models\User;
+use App\Models\Incident;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -30,12 +31,69 @@ class CommentService
                 ->orWhere('id', $identifier)
                 ->firstOrFail(),
             'tour', 'tours' => $this->resolveTour($identifier),
+            'incident', 'incidents' => Incident::findOrFail($identifier),
             default => throw (new ModelNotFoundException())->setModel(Model::class, [$identifier]),
         };
     }
 
     public function paginateForSubject(Model $subject, int $perPage = 10, bool $includeAll = false, ?string $status = null): LengthAwarePaginator
     {
+        $perPage = max(1, min($perPage, 50));
+
+        if ($subject instanceof Incident) {
+            $realComments = $subject->comments()->with('author')->latest()->get();
+
+            $siblings = Incident::with('user')
+                ->where('id', '!=', $subject->id)
+                ->where('type', $subject->type)
+                ->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->where('reported_at', '>=', now()->subHours(6))
+                            ->whereNull('end_time');
+                    })
+                    ->orWhere('end_time', '>=', now())
+                    ->orWhere('start_time', '>=', now());
+                })
+                ->whereBetween('lat', [$subject->lat - 0.005, $subject->lat + 0.005])
+                ->whereBetween('lng', [$subject->lng - 0.005, $subject->lng + 0.005])
+                ->whereNotNull('description')
+                ->where('description', '!=', '')
+                ->orderBy('reported_at', 'desc')
+                ->get();
+
+            $virtualComments = collect();
+            foreach ($siblings as $sibling) {
+                $virtualComment = new Comment();
+                $virtualComment->id = "sibling-{$sibling->id}";
+                $virtualComment->body = $sibling->description;
+                $virtualComment->status = Comment::STATUS_APPROVED;
+                $virtualComment->created_at = $sibling->reported_at;
+                $virtualComment->updated_at = $sibling->reported_at;
+                $virtualComment->user_id = $sibling->user_id;
+
+                if ($sibling->user) {
+                    $virtualComment->setRelation('author', $sibling->user);
+                } else {
+                    $virtualComment->setRelation('author', null);
+                }
+
+                $virtualComments->push($virtualComment);
+            }
+
+            $merged = $realComments->concat($virtualComments)->sortByDesc('created_at');
+
+            $page = request()->query('page', 1);
+            $slice = $merged->slice(($page - 1) * $perPage, $perPage)->values();
+
+            return new \Illuminate\Pagination\LengthAwarePaginator(
+                $slice,
+                $merged->count(),
+                $perPage,
+                $page,
+                ['path' => request()->url(), 'query' => request()->query()]
+            );
+        }
+
         $query = $subject->comments()->with('author')->latest();
 
         if ($includeAll && $status && in_array($status, [Comment::STATUS_PENDING, Comment::STATUS_APPROVED, Comment::STATUS_HIDDEN], true)) {
@@ -43,8 +101,6 @@ class CommentService
         } elseif (! $includeAll) {
             $query->where('status', Comment::STATUS_APPROVED);
         }
-
-        $perPage = max(1, min($perPage, 50));
 
         return $query->paginate($perPage);
     }
@@ -56,7 +112,7 @@ class CommentService
             'user_id' => $author->id,
             'body' => Arr::get($attributes, 'body'),
             'rating' => Arr::get($attributes, 'rating'),
-            'status' => Comment::STATUS_PENDING,
+            'status' => $subject instanceof Incident ? Comment::STATUS_APPROVED : Comment::STATUS_PENDING,
         ]);
 
         $comment->load(['author']);
@@ -72,7 +128,11 @@ class CommentService
             'body' => Arr::get($attributes, 'body', $comment->body),
             'rating' => Arr::get($attributes, 'rating', $comment->rating),
         ]);
-        $comment->status = Comment::STATUS_PENDING;
+        if ($comment->commentable_type === Incident::class) {
+            $comment->status = Comment::STATUS_APPROVED;
+        } else {
+            $comment->status = Comment::STATUS_PENDING;
+        }
         $comment->save();
 
         $comment->refresh()->load('author');

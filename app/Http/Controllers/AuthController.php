@@ -41,6 +41,7 @@ class AuthController extends Controller
             'permissions' => $request->user()->permissions->pluck('permission'),
             'max_notifications_per_day' => $request->user()->max_notifications_per_day,
             'notification_locations' => $request->user()->notification_locations,
+            'notification_roads' => $request->user()->notification_roads,
         ]);
     }
 
@@ -447,6 +448,8 @@ class AuthController extends Controller
             'notification_locations.*.lng' => 'required_with:notification_locations|numeric',
             'notification_locations.*.radius' => 'required_with:notification_locations|numeric',
             'notification_locations.*.name' => 'nullable|string',
+            'notification_roads' => 'sometimes|array',
+            'notification_roads.*' => 'string',
         ]);
 
         if ($validator->fails()) {
@@ -476,6 +479,9 @@ class AuthController extends Controller
         }
         if ($request->has('notification_locations')) {
             $user->notification_locations = $request->notification_locations;
+        }
+        if ($request->has('notification_roads')) {
+            $user->notification_roads = $request->notification_roads;
         }
 
         $user->save();

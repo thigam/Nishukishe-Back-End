@@ -32,6 +32,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('emails:send-daily-summary')->dailyAt('23:59');
         $schedule->command('app:send-incident-notifications')->everyMinute();
         $schedule->command('app:send-scheduled-notifications')->everyMinute();
+        $schedule->command('notifications:send-onboarding-tips')->everyMinute();
     }
 
     /**

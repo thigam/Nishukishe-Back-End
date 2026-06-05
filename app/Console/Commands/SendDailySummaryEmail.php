@@ -155,6 +155,37 @@ class SendDailySummaryEmail extends Command
             ->where('token_type', 'fcm')
             ->count();
 
+        // 14. Notifications Sent and Clicked Today
+        $notificationsSent = \App\Models\IncidentNotification::whereDate('created_at', $today)->count();
+        $notificationsClicked = \App\Models\IncidentNotification::whereDate('created_at', $today)
+            ->whereNotNull('clicked_at')
+            ->count();
+
+        // 15. Search Error Reports (Searches with no results and missing routes)
+        $emptySearchesCount = SearchLog::whereDate('created_at', $today)->where('has_result', false)->count();
+        $missingRoutes = SearchLog::whereDate('created_at', $today)
+            ->where('has_result', false)
+            ->get()
+            ->map(function ($log) {
+                $q = $log->query;
+                $origin = $q['origin'] ?? $log->origin_slug ?? 'Unknown';
+                $destination = $q['destination'] ?? $log->destination_slug ?? 'Unknown';
+                return "{$origin} ➔ {$destination}";
+            })
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // 16. Client-Side Error Logs
+        $clientErrorsCount = \App\Models\ClientErrorLog::whereDate('created_at', $today)->count();
+        $clientErrorSamples = \App\Models\ClientErrorLog::whereDate('created_at', $today)
+            ->select('message', \DB::raw('count(*) as count'))
+            ->groupBy('message')
+            ->orderBy('count', 'desc')
+            ->limit(10)
+            ->get()
+            ->toArray();
+
         $stats = [
             'searches' => $searches,
             'unique_visitors' => $uniqueVisitors,
@@ -182,6 +213,12 @@ class SendDailySummaryEmail extends Command
             'suggested_routes_count' => $suggestedRoutesCount,
             'active_web_notifications' => $activeWebNotifications,
             'active_mobile_notifications' => $activeMobileNotifications,
+            'notifications_sent' => $notificationsSent,
+            'notifications_clicked' => $notificationsClicked,
+            'empty_searches_count' => $emptySearchesCount,
+            'missing_routes' => $missingRoutes,
+            'client_errors_count' => $clientErrorsCount,
+            'client_error_samples' => $clientErrorSamples,
         ];
 
         Mail::to('thigamatthew7@gmail.com')->send(new AdminDailySummaryEmail($stats));

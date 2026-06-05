@@ -29,6 +29,14 @@ class CommentPolicy
 
     public function create(User $user, Model $subject): Response|bool
     {
+        if ($subject instanceof \App\Models\Incident) {
+            $exists = $subject->comments()->where('user_id', $user->id)->exists();
+            if ($exists) {
+                return $this->deny('You have already left a comment on this incident. You can edit your existing comment instead.');
+            }
+            return true;
+        }
+
         if ($subject instanceof Sacco || $subject instanceof TembeaOperatorProfile) {
             return (bool) $user->getKey();
         }
@@ -55,6 +63,9 @@ class CommentPolicy
 
     public function delete(User $user, Comment $comment): bool
     {
+        if ($comment->commentable_type === \App\Models\Incident::class) {
+            return $this->userCanModerateSubject($user, $comment->commentable);
+        }
         return $user->id === $comment->user_id || $this->userCanModerateSubject($user, $comment->commentable);
     }
 

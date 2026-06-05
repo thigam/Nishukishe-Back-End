@@ -60,6 +60,7 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth
         Route::get('/google/callback', 'handleGoogleCallback')->name('auth.google.callback');
 
         Route::middleware('auth:sanctum')->group(function () {
+            Route::get('/user', 'getUser')->name('api.auth.user');
             Route::get('/google/link', 'redirectToGoogleForLinking')->name('auth.google.link');
             Route::delete('/google/link', 'unlinkGoogle')->name('auth.google.unlink');
             Route::get('/google/status', 'googleStatus')->name('auth.google.status');
@@ -198,6 +199,12 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
             Route::delete('{comment}', [CommentController::class, 'destroy'])
                 ->name('comments.destroy');
         });
+
+        // User devices management
+        Route::get('user/devices', [MobileController::class, 'getUserDevices']);
+        Route::put('user/devices/{id}/toggle', [MobileController::class, 'toggleDeviceActive']);
+        Route::delete('user/devices/{id}', [MobileController::class, 'deleteDevice']);
+
 
         Route::get('admin/refunds', [\App\Http\Controllers\Admin\RefundController::class, 'index']);
         Route::post('admin/refunds', [\App\Http\Controllers\Admin\RefundController::class, 'store']);
@@ -389,6 +396,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::get('campaigns', [NotificationCampaignController::class, 'index']);
         Route::post('campaigns', [NotificationCampaignController::class, 'store']);
         Route::get('stats/automated', [\App\Http\Controllers\NotificationStatsController::class, 'automatedStats']);
+        Route::get('stats/onboarding', [\App\Http\Controllers\NotificationStatsController::class, 'onboardingStats']);
     });
 
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
@@ -442,6 +450,7 @@ Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'searc
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
 Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
 Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
+Route::get('roads/suggest', [\App\Http\Controllers\RoadController::class, 'suggest'])->middleware([CorsMiddleware::class]);
 
 // Commuter Occurrences
 Route::prefix('occurrences')->group(function () {
@@ -487,6 +496,7 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
     // Track notification clicks
     Route::post('/notifications/{campaign_id}/click', [NotificationCampaignController::class, 'trackClick']);
     Route::post('/notifications/automated/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackAutomatedClick']);
+    Route::post('/notifications/onboarding/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackOnboardingClick']);
 });
 
 

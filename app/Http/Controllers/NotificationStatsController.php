@@ -91,4 +91,71 @@ class NotificationStatsController extends Controller
         }
         return response()->json(['success' => true]);
     }
+
+    /**
+     * Record a click for an onboarding notification.
+     */
+    public function trackOnboardingClick(Request $request, $id)
+    {
+        $notification = \App\Models\OnboardingNotification::find($id);
+        if ($notification && !$notification->clicked_at) {
+            $notification->clicked_at = now();
+            $notification->save();
+        }
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Get statistics for onboarding notifications.
+     */
+    public function onboardingStats(Request $request)
+    {
+        $bin   = $request->query('bin', 'day');
+        $start = $request->query('start') ? Carbon::parse($request->query('start'))->startOfDay() : Carbon::now()->subDays(30)->startOfDay();
+        $end   = $request->query('end')   ? Carbon::parse($request->query('end'))->endOfDay()   : Carbon::now()->endOfDay();
+
+        $baseQuery = \App\Models\OnboardingNotification::whereBetween('created_at', [$start, $end]);
+
+        $totalSent   = (clone $baseQuery)->count();
+        $totalClicks = (clone $baseQuery)->whereNotNull('clicked_at')->count();
+        $ctr         = $totalSent > 0 ? round(($totalClicks / $totalSent) * 100, 1) : 0;
+
+        // Breakdown by tip_key
+        $byTip = \App\Models\OnboardingNotification::whereBetween('created_at', [$start, $end])
+            ->select(
+                'tip_key',
+                DB::raw('COUNT(*) as sent'),
+                DB::raw('SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicks')
+            )
+            ->groupBy('tip_key')
+            ->get()
+            ->map(function ($item) {
+                $item->ctr = $item->sent > 0 ? round(($item->clicks / $item->sent) * 100, 1) : 0;
+                return $item;
+            });
+
+        // Time-series (binned by day or month)
+        $dateFormat = $bin === 'month' ? '%Y-%m' : '%Y-%m-%d';
+
+        $series = \App\Models\OnboardingNotification::whereBetween('created_at', [$start, $end])
+            ->select(
+                DB::raw("DATE_FORMAT(created_at, '{$dateFormat}') as period"),
+                DB::raw('COUNT(*) as sent'),
+                DB::raw('SUM(CASE WHEN clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicks')
+            )
+            ->groupBy('period')
+            ->orderBy('period')
+            ->get();
+
+        return response()->json([
+            'total_sent'   => $totalSent,
+            'total_clicks' => $totalClicks,
+            'ctr'          => $ctr,
+            'by_tip'       => $byTip,
+            'series'       => $series,
+            'bin'          => $bin,
+            'start'        => $start->toDateString(),
+            'end'          => $end->toDateString(),
+        ]);
+    }
 }

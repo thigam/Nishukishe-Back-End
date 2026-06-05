@@ -123,23 +123,66 @@ class MobileController extends Controller
     public function registerToken(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'device_id'  => 'required|string|max:64',
-            'token'      => 'required|string',
-            'platform'   => 'nullable|string|max:20',
-            'token_type' => 'nullable|in:fcm,web_push',
+            'device_id'   => 'required|string|max:64',
+            'token'       => 'required|string',
+            'platform'    => 'nullable|string|max:20',
+            'token_type'  => 'nullable|in:fcm,web_push',
+            'device_name' => 'nullable|string|max:100',
         ]);
+
+        $user = $request->user();
+        if (!$user && $request->bearerToken()) {
+            $token = \Laravel\Sanctum\PersonalAccessToken::findToken($request->bearerToken());
+            if ($token) {
+                $user = $token->tokenable;
+            }
+        }
 
         DeviceToken::updateOrCreate(
             ['device_id' => $validated['device_id']],
             [
-                'user_id'    => $request->user()?->id,
-                'token'      => $validated['token'],
-                'platform'   => $validated['platform'] ?? 'android',
-                'token_type' => $validated['token_type'] ?? 'fcm',
-                'is_active'  => true,
+                'user_id'     => $user?->id,
+                'token'       => $validated['token'],
+                'platform'    => $validated['platform'] ?? 'android',
+                'token_type'  => $validated['token_type'] ?? 'fcm',
+                'device_name' => $validated['device_name'] ?? null,
+                'is_active'   => true,
             ]
         );
 
         return response()->json(['ok' => true]);
     }
+
+    /**
+     * Get all device tokens registered to the current authenticated user.
+     */
+    public function getUserDevices(Request $request): JsonResponse
+    {
+        $devices = DeviceToken::where('user_id', $request->user()->id)->get();
+        return response()->json($devices);
+    }
+
+    /**
+     * Toggle the active state of a device token.
+     */
+    public function toggleDeviceActive(Request $request, int $id): JsonResponse
+    {
+        $device = DeviceToken::where('user_id', $request->user()->id)->findOrFail($id);
+        $device->is_active = !$device->is_active;
+        $device->save();
+
+        return response()->json(['ok' => true, 'is_active' => $device->is_active]);
+    }
+
+    /**
+     * Delete/unregister a device token.
+     */
+    public function deleteDevice(Request $request, int $id): JsonResponse
+    {
+        $device = DeviceToken::where('user_id', $request->user()->id)->findOrFail($id);
+        $device->delete();
+
+        return response()->json(['ok' => true]);
+    }
 }
+
