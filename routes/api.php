@@ -396,6 +396,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::get('campaigns', [NotificationCampaignController::class, 'index']);
         Route::post('campaigns', [NotificationCampaignController::class, 'store']);
         Route::get('stats/automated', [\App\Http\Controllers\NotificationStatsController::class, 'automatedStats']);
+        Route::get('stats/onboarding', [\App\Http\Controllers\NotificationStatsController::class, 'onboardingStats']);
     });
 
     Route::get('superadmin/scalping/stops', [\App\Http\Controllers\SuperAdmin\ScalpingController::class, 'stops'])
@@ -495,6 +496,7 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
     // Track notification clicks
     Route::post('/notifications/{campaign_id}/click', [NotificationCampaignController::class, 'trackClick']);
     Route::post('/notifications/automated/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackAutomatedClick']);
+    Route::post('/notifications/onboarding/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackOnboardingClick']);
 });
 
 

@@ -3,8 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Models\DeviceToken;
+use App\Models\OnboardingNotification;
+use App\Services\FcmService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
@@ -15,49 +16,26 @@ class SendOnboardingTips extends Command
 
     private array $tips = [
         'tip_1' => [
-            'day'   => 1,
-            'title' => '🔔 Get Instant Road Alerts!',
-            'body'  => 'Configure your watched roads and locations in your Profile to get real-time push alerts about traffic and accidents.',
+            'title' => '🔔 Customize Your Alerts',
+            'body'  => 'Did you know you can receive customized traffic, accident, or road closure alerts for locations or roads of your choice? Set them up in your Profile.',
             'link'  => '/profile',
         ],
         'tip_2' => [
-            'day'   => 3,
-            'title' => '📍 Saved Locations Guide',
-            'body'  => 'Save your daily commute locations to receive automated updates when incidents happen within 2km.',
-            'link'  => '/profile',
+            'title' => '📢 Share Road Incidents',
+            'body'  => 'Seen traffic, an accident, or a road closure? Tap the red megaphone icon on the home screen to report it and alert the community.',
+            'link'  => '/',
         ],
         'tip_3' => [
-            'day'   => 7,
-            'title' => '🚌 Smart Journey Planning',
-            'body'  => 'Use the Nishukishe Search Bar to find public transit routes, fares, and estimated travel times.',
+            'title' => '💡 Keep the Community Safe',
+            'body'  => 'Help other commuters! Report any delays, hazards, or closures you see on your route using the report megaphone.',
             'link'  => '/',
         ],
     ];
 
-    public function handle(): int
+    public function handle(FcmService $fcmService): int
     {
         $this->info("Checking device tokens for onboarding/usage tips...");
         $isDry = $this->option('dry-run');
-
-        $serviceAccountPath = config('services.fcm.service_account_path');
-        $projectId = config('services.fcm.project_id');
-
-        if (!$isDry) {
-            if (!$serviceAccountPath || !file_exists($serviceAccountPath)) {
-                $this->error('FCM service account JSON not found. Set FCM_SERVICE_ACCOUNT_PATH in .env.');
-                return self::FAILURE;
-            }
-            if (!$projectId) {
-                $this->error('FCM project ID not configured. Set FCM_PROJECT_ID in .env.');
-                return self::FAILURE;
-            }
-        }
-
-        $accessToken = $isDry ? 'dry-run-token' : $this->getAccessToken($serviceAccountPath);
-        if (!$accessToken) {
-            $this->error('Failed to obtain FCM access token.');
-            return self::FAILURE;
-        }
 
         // Fetch all active device tokens
         $deviceTokens = DeviceToken::where('is_active', true)->get();
@@ -68,25 +46,35 @@ class SendOnboardingTips extends Command
         }
 
         $sentCount = 0;
-        $fcmUrl = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
+        $now = Carbon::now();
+        
+        // Nairobi timezone check for Tips 2 & 3
+        $nairobiHour = Carbon::now('Africa/Nairobi')->hour;
+        $isWithinAllowedHours = ($nairobiHour >= 9 && $nairobiHour < 17);
 
         foreach ($deviceTokens as $deviceToken) {
             $created = Carbon::parse($deviceToken->created_at);
-            $daysDiff = $created->diffInDays(Carbon::now());
+            
+            $minutesDiff = $created->diffInMinutes($now);
+            $hoursDiff   = $created->diffInHours($now);
+            $daysDiff    = $created->diffInDays($now);
+            
             $sentTips = $deviceToken->sent_onboarding_tips ?? [];
 
             $selectedTipKey = null;
-            if ($daysDiff >= 7) {
-                if (!in_array('tip_3', $sentTips)) {
-                    $selectedTipKey = 'tip_3';
+
+            // Enforce strict chronological progression
+            if (!in_array('tip_1', $sentTips)) {
+                if ($minutesDiff >= 30) {
+                    $selectedTipKey = 'tip_1';
                 }
-            } elseif ($daysDiff >= 3) {
-                if (!in_array('tip_2', $sentTips)) {
+            } elseif (!in_array('tip_2', $sentTips)) {
+                if ($hoursDiff >= 5 && $isWithinAllowedHours) {
                     $selectedTipKey = 'tip_2';
                 }
-            } elseif ($daysDiff >= 1) {
-                if (!in_array('tip_1', $sentTips)) {
-                    $selectedTipKey = 'tip_1';
+            } elseif (!in_array('tip_3', $sentTips)) {
+                if ($daysDiff >= 3 && $isWithinAllowedHours) {
+                    $selectedTipKey = 'tip_3';
                 }
             }
 
@@ -95,88 +83,49 @@ class SendOnboardingTips extends Command
             }
 
             $tip = $this->tips[$selectedTipKey];
-            $this->info("Sending {$selectedTipKey} (Day {$tip['day']} Tip) to Token ID: {$deviceToken->id} (Created {$daysDiff} days ago)");
+            $this->info("Sending {$selectedTipKey} to Token ID: {$deviceToken->id} (Created {$minutesDiff} minutes ago)");
 
             if ($isDry) {
                 $sentCount++;
                 continue;
             }
 
-            $payload = [
-                'message' => [
-                    'token' => $deviceToken->token,
-                    'notification' => [
-                        'title' => $tip['title'],
-                        'body'  => $tip['body'],
-                    ],
-                    'data' => [
-                        'link' => $tip['link'],
-                    ],
-                    'android' => [
-                        'notification' => [
-                            'sound'        => 'default',
-                            'click_action' => 'OPEN_ACTIVITY_1',
-                            'icon'         => 'ic_notification',
-                            'color'        => '#2563EB',
-                        ],
-                    ],
-                ],
-            ];
+            // Create tracking record
+            $onboardingNotification = OnboardingNotification::create([
+                'device_token_id' => $deviceToken->id,
+                'tip_key'         => $selectedTipKey,
+                'created_at'      => now(),
+            ]);
 
-            $response = Http::withToken($accessToken)->post($fcmUrl, $payload);
+            $response = $fcmService->sendNotification(
+                [$deviceToken->token],
+                $tip['title'],
+                $tip['body'],
+                $tip['link'],
+                null,
+                null,
+                [$onboardingNotification->id]
+            );
 
-            if ($response->successful()) {
+            if ($response['sent'] > 0) {
                 $sentCount++;
                 $sentTips[] = $selectedTipKey;
                 $deviceToken->update(['sent_onboarding_tips' => $sentTips]);
             } else {
-                $responseData = $response->json();
-                if (($responseData['error']['status'] ?? '') === 'NOT_FOUND') {
-                    $deviceToken->update(['is_active' => false]);
-                    $this->warn("Deactivated unregistered token ID: {$deviceToken->id}");
-                } else {
-                    Log::warning('FCM onboarding tip send failed', [
-                        'token_id' => $deviceToken->id,
-                        'error'    => $responseData,
-                    ]);
+                // If FCM returned error of invalid token, deactivate it
+                if (isset($response['error']) && $response['error'] === 'config_error') {
+                    $this->error('FCM Service Configuration Error.');
+                    return self::FAILURE;
                 }
+                
+                // If it failed because the token was not found (unregistered), active = false is already handled by FcmService
+                // but let's delete our temporary tracking record to avoid skewing analytics
+                $onboardingNotification->delete();
+                $this->warn("Failed to send onboarding tip to Token ID: {$deviceToken->id}");
             }
         }
 
         $this->info("Processed complete. Sent: {$sentCount} onboarding tips.");
         return self::SUCCESS;
-    }
-
-    private function getAccessToken(string $serviceAccountPath): ?string
-    {
-        $serviceAccount = json_decode(file_get_contents($serviceAccountPath), true);
-        if (!$serviceAccount) {
-            return null;
-        }
-
-        $now    = time();
-        $expiry = $now + 3600;
-        $scope  = 'https://www.googleapis.com/auth/firebase.messaging';
-
-        $header  = base64_encode(json_encode(['alg' => 'RS256', 'typ' => 'JWT']));
-        $claims  = base64_encode(json_encode([
-            'iss'   => $serviceAccount['client_email'],
-            'scope' => $scope,
-            'aud'   => 'https://oauth2.googleapis.com/token',
-            'iat'   => $now,
-            'exp'   => $expiry,
-        ]));
-
-        $toSign    = "{$header}.{$claims}";
-        $privateKey = openssl_pkey_get_private($serviceAccount['private_key']);
-        openssl_sign($toSign, $signature, $privateKey, 'SHA256');
-        $jwt = "{$toSign}." . base64_encode($signature);
-
-        $response = Http::asForm()->post('https://oauth2.googleapis.com/token', [
-            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-            'assertion'  => $jwt,
-        ]);
-
-        return $response->json('access_token');
     }
 }

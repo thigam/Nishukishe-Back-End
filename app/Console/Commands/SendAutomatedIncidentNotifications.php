@@ -190,23 +190,29 @@ class SendAutomatedIncidentNotifications extends Command
             $frontendUrl = rtrim(env('FRONTEND_URL', 'https://nishukishe.com'), '/');
             $link  = "{$frontendUrl}/?incident_id={$incident->id}&showOccurrences=true";
 
-            $fcmService->sendNotification(
-                array_column($tokens, 'token'),
-                $title,
-                $body,
-                $link
-            );
-
-            // Log each notification sent
+            // Create IncidentNotification records first, so we have their IDs
+            $notificationIds = [];
+            $tokenStrings = [];
             foreach ($tokens as $t) {
-                IncidentNotification::create([
+                $notif = IncidentNotification::create([
                     'incident_id' => $incident->id,
                     'user_id'     => $t['user_id'],
                     'device_id'   => $t['device_id'],
                     'created_at'  => now(),
                 ]);
+                $notificationIds[] = $notif->id;
+                $tokenStrings[] = $t['token'];
                 $sentCount++;
             }
+
+            $fcmService->sendNotification(
+                $tokenStrings,
+                $title,
+                $body,
+                $link,
+                null,
+                $notificationIds
+            );
         }
 
         $this->info("Automated incident notifications complete. Sent: {$sentCount}.");
