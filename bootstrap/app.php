@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('emails:send-daily-summary')->dailyAt('23:59');
         $schedule->command('app:send-incident-notifications')->everyMinute();
         $schedule->command('app:send-scheduled-notifications')->everyMinute();
+        $schedule->command('notifications:send-onboarding-tips')->everyMinute();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
