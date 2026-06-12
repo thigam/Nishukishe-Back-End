@@ -15,6 +15,8 @@ class StationRaptor
     private $routeStations = [];
     private $routeStops = [];
     private $stopCoords = []; // Cache for stop lat/lng
+    private $directEdgeCache = [];
+    private $hubEdgesCache = [];
 
     public function loadData()
     {
@@ -404,33 +406,47 @@ class StationRaptor
         if ($from === $to)
             return 0;
 
+        $cacheKey = "{$from}_{$to}";
+        if (array_key_exists($cacheKey, $this->directEdgeCache)) {
+            return $this->directEdgeCache[$cacheKey];
+        }
+
         // 1. Check DB for direct edge
         $edge = TransferEdge::where('from_stop_id', $from)->where('to_stop_id', $to)->first();
         if ($edge) {
-            return $edge->walk_time_seconds;
+            return $this->directEdgeCache[$cacheKey] = $edge->walk_time_seconds;
         }
 
         // 2. Check for Hub Intersection (synthetic edge)
-        $fromHubs = TransferEdge::where('from_stop_id', $from)
-            ->where('target_is_hub', true)
-            ->get()
-            ->keyBy('to_stop_id');
+        if (!array_key_exists($from, $this->hubEdgesCache)) {
+            $this->hubEdgesCache[$from] = TransferEdge::where('from_stop_id', $from)
+                ->where('target_is_hub', true)
+                ->get()
+                ->keyBy('to_stop_id');
+        }
+        $fromHubs = $this->hubEdgesCache[$from];
 
-        if ($fromHubs->isEmpty())
-            return null;
+        if ($fromHubs->isEmpty()) {
+            return $this->directEdgeCache[$cacheKey] = null;
+        }
 
-        $toHubs = TransferEdge::where('from_stop_id', $to)
-            ->where('target_is_hub', true)
-            ->get()
-            ->keyBy('to_stop_id');
+        if (!array_key_exists($to, $this->hubEdgesCache)) {
+            $this->hubEdgesCache[$to] = TransferEdge::where('from_stop_id', $to)
+                ->where('target_is_hub', true)
+                ->get()
+                ->keyBy('to_stop_id');
+        }
+        $toHubs = $this->hubEdgesCache[$to];
 
-        if ($toHubs->isEmpty())
-            return null;
+        if ($toHubs->isEmpty()) {
+            return $this->directEdgeCache[$cacheKey] = null;
+        }
 
         // Find common hubs
         $commonHubs = $fromHubs->keys()->intersect($toHubs->keys());
-        if ($commonHubs->isEmpty())
-            return null;
+        if ($commonHubs->isEmpty()) {
+            return $this->directEdgeCache[$cacheKey] = null;
+        }
 
         // Find the fastest path through any common hub
         $bestTime = INF;
@@ -442,6 +458,7 @@ class StationRaptor
         }
 
         // 1800 seconds = 30 minutes WALK_CAP
-        return ($bestTime <= 1800) ? $bestTime : null;
+        $res = ($bestTime <= 1800) ? $bestTime : null;
+        return $this->directEdgeCache[$cacheKey] = $res;
     }
 }

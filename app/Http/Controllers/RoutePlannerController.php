@@ -65,6 +65,8 @@ class RoutePlannerController extends Controller
     private array $walkAdj = [];     // from_stop_id => [ ['to'=>id, 'sec'=>int], ... ]
     private array $routesByStop = [];   // stop_id => [sacco_route_id...]
     private array $routeTrips = [];   // sacco_route_id => Trip collection
+    private array $stopsCache = [];     // stop_id => Stops model
+    private array $transferEdgeCache = []; // from_stop_id_to_stop_id => TransferEdge
 
     // RAPTOR-lite on-the-fly caches
     private array $cumKmCache = []; // srid => [cum_km...]
@@ -288,6 +290,45 @@ class RoutePlannerController extends Controller
         // Slice top candidates (with buffer for outliers filter)
         $rawPaths = array_slice($filteredRawPaths, 0, self::MAX_CANDIDATES * 2);
 
+        // Pre-fetch stops and routes in bulk to minimize DB queries
+        $uniqueRouteIds = [];
+        $uniqueStopIds = [];
+        foreach ($rawPaths as $path) {
+            foreach ($path as $step) {
+                if (isset($step['stop_id'])) {
+                    $uniqueStopIds[] = (string) $step['stop_id'];
+                }
+                if (isset($step['label']) && str_starts_with($step['label'], 'bus via ')) {
+                    $uniqueRouteIds[] = substr($step['label'], 8);
+                }
+            }
+        }
+        $uniqueRouteIds = array_values(array_unique(array_filter($uniqueRouteIds)));
+
+        if (!empty($uniqueRouteIds)) {
+            $routes = SaccoRoutes::with(['sacco', 'route', 'variations'])
+                ->whereIn('sacco_route_id', $uniqueRouteIds)
+                ->get()
+                ->keyBy('sacco_route_id');
+
+            foreach ($routes as $srid => $r) {
+                $this->routeCache[$srid] = $r;
+                $stopsArr = is_array($r->stop_ids) ? $r->stop_ids : [];
+                if (count($stopsArr) >= 2) {
+                    $uniqueStopIds[] = (string) $stopsArr[0];
+                    $uniqueStopIds[] = (string) $stopsArr[count($stopsArr) - 1];
+                }
+            }
+        }
+
+        $uniqueStopIds = array_values(array_unique(array_filter($uniqueStopIds)));
+        if (!empty($uniqueStopIds)) {
+            $stops = Stops::whereIn('stop_id', $uniqueStopIds)->get()->keyBy('stop_id');
+            foreach ($stops as $sid => $s) {
+                $this->stopsCache[$sid] = $s;
+            }
+        }
+
         $enriched = array_map(fn($p) => $this->enrichPath($p, $departAfter, $this->isEventDay), $rawPaths);
         // NEW: collapse tiny CBD bus hops into walks (and re-merge)
         $enriched = array_map(fn($e) => $this->collapseCbdHops($e, 750), $enriched);
@@ -509,14 +550,37 @@ class RoutePlannerController extends Controller
 
         $picked = collect();
 
-        // Expand rings until we have 3 unique stops (or hit maxK)
-        for ($k = 0; $k <= $maxK && $picked->count() < $count; $k++) {
-            $cells = array_map('strval', H3Wrapper::kRing($index, $k));     // ← cast to string
+        // 1. Batch 1: Rings 0 to 2 (19 cells)
+        $cellsBatch1 = [];
+        for ($k = 0; $k <= min(2, $maxK); $k++) {
+            $cellsBatch1 = array_merge($cellsBatch1, H3Wrapper::kRing($index, $k));
+        }
+        $cellsBatch1 = array_values(array_unique(array_map('strval', $cellsBatch1)));
+
+        $rows = Directions::with('stop')
+            ->whereIn('h3_index', $cellsBatch1)
+            ->selectRaw("*, {$expr} AS distance", [$lat, $lng, $lat])
+            ->orderBy('distance')
+            ->get()
+            ->filter(fn($d) => $d->stop !== null);
+
+        $picked = $picked->merge($rows)
+            ->unique(fn($d) => $d->stop->stop_id)
+            ->sortBy('distance')
+            ->take($count);
+
+        // 2. Batch 2: Rings 3 to 6 (if needed)
+        if ($picked->count() < $count && $maxK >= 3) {
+            $cellsBatch2 = [];
+            for ($k = 3; $k <= $maxK; $k++) {
+                $cellsBatch2 = array_merge($cellsBatch2, H3Wrapper::kRing($index, $k));
+            }
+            $cellsBatch2 = array_values(array_unique(array_map('strval', $cellsBatch2)));
+
             $rows = Directions::with('stop')
-                ->whereIn('h3_index', $cells)
+                ->whereIn('h3_index', $cellsBatch2)
                 ->selectRaw("*, {$expr} AS distance", [$lat, $lng, $lat])
                 ->orderBy('distance')
-                ->limit($count * 3)
                 ->get()
                 ->filter(fn($d) => $d->stop !== null);
 
@@ -563,7 +627,10 @@ class RoutePlannerController extends Controller
 
     private function stopInfo(string $directionId)
     {
-        return Stops::where('stop_id', $directionId)->first();
+        if (!isset($this->stopsCache[$directionId])) {
+            $this->stopsCache[$directionId] = Stops::where('stop_id', $directionId)->first();
+        }
+        return $this->stopsCache[$directionId];
     }
 
     private function buildBusLeg(
@@ -575,9 +642,12 @@ class RoutePlannerController extends Controller
         ?Carbon $departAfter = null,
         bool $isEventDay = false
     ) {
-        $route = SaccoRoutes::with(['sacco', 'route', 'variations'])
-            ->where('sacco_route_id', $saccoRouteId)
-            ->first();
+        if (!isset($this->routeCache[$saccoRouteId])) {
+            $this->routeCache[$saccoRouteId] = SaccoRoutes::with(['sacco', 'route', 'variations'])
+                ->where('sacco_route_id', $saccoRouteId)
+                ->first();
+        }
+        $route = $this->routeCache[$saccoRouteId];
         if (!$route) {
             return null;
         }
@@ -745,9 +815,15 @@ class RoutePlannerController extends Controller
         if (!$from || !$to)
             return null;
 
-        $edge = TransferEdge::where('from_stop_id', $fromDir)
-            ->where('to_stop_id', $toDir)
-            ->first();
+        $cacheKey = "{$fromDir}_{$toDir}";
+        if (array_key_exists($cacheKey, $this->transferEdgeCache)) {
+            $edge = $this->transferEdgeCache[$cacheKey];
+        } else {
+            $edge = TransferEdge::where('from_stop_id', $fromDir)
+                ->where('to_stop_id', $toDir)
+                ->first();
+            $this->transferEdgeCache[$cacheKey] = $edge;
+        }
 
         $coords = $edge?->geometry ?? [];
 
@@ -1941,7 +2017,7 @@ class RoutePlannerController extends Controller
     private function getStopLL(string $stopId): array
     {
         if (!array_key_exists($stopId, $this->stopLL)) {
-            $s = Stops::where('stop_id', $stopId)->first();
+            $s = $this->stopInfo($stopId);
             $this->stopLL[$stopId] = $s ? [(float) $s->stop_lat, (float) $s->stop_long] : [null, null];
         }
         return $this->stopLL[$stopId];
@@ -2129,8 +2205,14 @@ class RoutePlannerController extends Controller
 
     private function networkDistanceMOnTheFly(string $fromStopId, string $toStopId): int
     {
-        $edge = \App\Models\TransferEdge::where('from_stop_id', $fromStopId)
-            ->where('to_stop_id', $toStopId)->first();
+        $cacheKey = "{$fromStopId}_{$toStopId}";
+        if (array_key_exists($cacheKey, $this->transferEdgeCache)) {
+            $edge = $this->transferEdgeCache[$cacheKey];
+        } else {
+            $edge = \App\Models\TransferEdge::where('from_stop_id', $fromStopId)
+                ->where('to_stop_id', $toStopId)->first();
+            $this->transferEdgeCache[$cacheKey] = $edge;
+        }
         if ($edge)
             return $this->edgeDistanceMOnTheFly($edge);
 
