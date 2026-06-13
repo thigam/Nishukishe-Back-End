@@ -456,39 +456,10 @@ class StationRaptor
             return $this->directEdgeCache[$cacheKey] = $bestTime;
         }
 
-        // 3. Same-station fallback (OSRM on-the-fly / Straight-line estimate)
+        // 3. Same-station fallback (Straight-line estimate during search phase)
         $sFrom = $this->stopToStation[$from] ?? null;
         $sTo = $this->stopToStation[$to] ?? null;
         if ($sFrom && $sTo && $sFrom === $sTo) {
-            try {
-                $fromStop = \App\Models\Stops::where('stop_id', $from)->first();
-                $toStop = \App\Models\Stops::where('stop_id', $to)->first();
-                if ($fromStop && $toStop) {
-                    $walkRouter = app(\App\Services\WalkRouter::class);
-                    $r = $walkRouter->route(
-                        (float) $fromStop->stop_lat,
-                        (float) $fromStop->stop_long,
-                        (float) $toStop->stop_lat,
-                        (float) $toStop->stop_long
-                    );
-                    if ($r && !empty($r['duration_s'])) {
-                        $seconds = (int) $r['duration_s'];
-                        // Save this edge so that next time Layer 1 finds it instantly
-                        TransferEdge::updateOrCreate(
-                            ['from_stop_id' => $from, 'to_stop_id' => $to],
-                            [
-                                'walk_time_seconds' => $seconds,
-                                'geometry' => $r['coords'] ?? [],
-                                'target_is_hub' => false
-                            ]
-                        );
-                        return $this->directEdgeCache[$cacheKey] = $seconds;
-                    }
-                }
-            } catch (\Throwable $e) {
-                Log::warning("OSRM dynamic walk lookup failed in StationRaptor: " . $e->getMessage());
-            }
-
             // Offline straight-line fallback
             $cFrom = $this->stopCoords[$from] ?? null;
             $cTo = $this->stopCoords[$to] ?? null;
