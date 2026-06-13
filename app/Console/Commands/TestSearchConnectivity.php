@@ -219,6 +219,7 @@ class TestSearchConnectivity extends Command
                     'has_result' => $hasResult ? 'YES' : 'NO',
                     'routes_count' => count($routes),
                     'time_ms' => round($durationMs, 2),
+                    'reason' => $hasResult ? 'Success' : $this->getDiagnosticReason($controller, $olat, $olng, $dlat, $dlng),
                 ];
             } catch (\Throwable $e) {
                 $end = microtime(true);
@@ -231,6 +232,7 @@ class TestSearchConnectivity extends Command
                     'has_result' => 'ERROR',
                     'routes_count' => 0,
                     'time_ms' => round($durationMs, 2),
+                    'reason' => 'Exception: ' . $e->getMessage(),
                 ];
                 Log::error("Test search failed with error: " . $e->getMessage());
             }
@@ -242,7 +244,7 @@ class TestSearchConnectivity extends Command
         $this->info("\n");
 
         // Print details
-        $headers = ['Index', 'Origin', 'Destination', 'Resolved?', 'Routes Count', 'Latency (ms)'];
+        $headers = ['Index', 'Origin', 'Destination', 'Resolved?', 'Routes Count', 'Latency (ms)', 'Failure Reason / Status'];
         $this->table($headers, $resultsLog);
 
         // Calculate statistics
@@ -264,5 +266,71 @@ class TestSearchConnectivity extends Command
         $this->info("=================================");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Diagnose why a search returned no routes.
+     */
+    private function getDiagnosticReason($controller, $olat, $olng, $dlat, $dlng)
+    {
+        try {
+            $method = new \ReflectionMethod(RoutePlannerController::class, 'seedStopsWithHubs');
+            $method->setAccessible(true);
+
+            $originStops = $method->invoke($controller, (float) $olat, (float) $olng, 3, 6, 2, 5);
+            $destStops = $method->invoke($controller, (float) $dlat, (float) $dlng, 3, 6, 2, 5);
+
+            if ($originStops->isEmpty()) {
+                return "No origin seed stops found (out of bounds)";
+            }
+            if ($destStops->isEmpty()) {
+                return "No destination seed stops found (out of bounds)";
+            }
+
+            $stationRaptor = app(\App\Services\StationRaptor::class);
+            $stationRaptor->loadData();
+
+            $mappedOrigin = false;
+            foreach ($originStops as $o) {
+                if (isset($stationRaptor->stopToStation[$o['stop_id']])) {
+                    $mappedOrigin = true;
+                }
+            }
+
+            $mappedDest = false;
+            foreach ($destStops as $d) {
+                if (isset($stationRaptor->stopToStation[$d['stop_id']])) {
+                    $mappedDest = true;
+                }
+            }
+
+            if (!$mappedOrigin) {
+                return "Origin stops not mapped to any station";
+            }
+            if (!$mappedDest) {
+                return "Destination stops not mapped to any station";
+            }
+
+            // Check if RAPTOR station search found paths
+            $pathsFound = false;
+            foreach ($originStops as $oStop) {
+                foreach ($destStops as $dStop) {
+                    $results = $stationRaptor->search($oStop['stop_id'], $dStop['stop_id']);
+                    if (!isset($results['error']) && !empty($results)) {
+                        $pathsFound = true;
+                        break 2;
+                    }
+                }
+            }
+
+            if (!$pathsFound) {
+                return "RAPTOR station search found no paths";
+            }
+
+            return "Filtered out in post-processing (long distance / redundant)";
+
+        } catch (\Throwable $e) {
+            return "Diagnostic failed: " . $e->getMessage();
+        }
     }
 }
