@@ -47,24 +47,56 @@ class TestSearchConnectivity extends Command
         $limit = (int) $this->option('limit');
         $this->info("Exporting up to {$limit} random failing searches from DB...");
 
-        $searches = SearchLog::where('has_result', false)
-            ->whereNotNull('origin_lat')
-            ->whereNotNull('origin_lng')
-            ->whereNotNull('destination_lat')
-            ->whereNotNull('destination_lng')
+        $rawSearches = SearchLog::where('has_result', false)
+            ->where(function ($q) {
+                $q->whereNotNull('origin_lat')
+                  ->orWhereNotNull('query');
+            })
             ->inRandomOrder()
             ->limit($limit)
-            ->get(['origin_lat', 'origin_lng', 'destination_lat', 'destination_lng']);
+            ->get();
 
-        if ($searches->isEmpty()) {
-            $this->error("No failing searches found in the SearchLog table.");
+        $formatted = [];
+        foreach ($rawSearches as $s) {
+            $olat = null;
+            $olng = null;
+            if (!empty($s->origin_lat)) {
+                $olat = (float) $s->origin_lat;
+                $olng = (float) $s->origin_lng;
+            } elseif (!empty($s->query['origin'])) {
+                $olat = (float) ($s->query['origin'][0] ?? 0);
+                $olng = (float) ($s->query['origin'][1] ?? 0);
+            }
+
+            $dlat = null;
+            $dlng = null;
+            if (!empty($s->destination_lat)) {
+                $dlat = (float) $s->destination_lat;
+                $dlng = (float) $s->destination_lng;
+            } elseif (!empty($s->query['destination'])) {
+                $dlat = (float) ($s->query['destination'][0] ?? 0);
+                $dlng = (float) ($s->query['destination'][1] ?? 0);
+            }
+
+            if ($olat && $olng && $dlat && $dlng) {
+                $formatted[] = [
+                    'origin_lat' => $olat,
+                    'origin_lng' => $olng,
+                    'destination_lat' => $dlat,
+                    'destination_lng' => $dlng,
+                ];
+            }
+        }
+
+        if (empty($formatted)) {
+            $this->error("No failing searches with valid coordinates found in the SearchLog table.");
             return self::FAILURE;
         }
 
         $filePath = storage_path('app/failing_searches.json');
-        file_put_contents($filePath, $searches->toJson(JSON_PRETTY_PRINT));
+        file_put_contents($filePath, json_encode($formatted, JSON_PRETTY_PRINT));
 
-        $this->info("Successfully exported " . $searches->count() . " searches to {$filePath}");
+        $this->info("Successfully exported " . count($formatted) . " searches to {$filePath}");
         return self::SUCCESS;
     }
 
@@ -91,15 +123,45 @@ class TestSearchConnectivity extends Command
             $searches = array_slice($data, 0, $limit);
         } else {
             $this->info("Fetching up to {$limit} random failing searches directly from DB...");
-            $searches = SearchLog::where('has_result', false)
-                ->whereNotNull('origin_lat')
-                ->whereNotNull('origin_lng')
-                ->whereNotNull('destination_lat')
-                ->whereNotNull('destination_lng')
+            $rawSearches = SearchLog::where('has_result', false)
+                ->where(function ($q) {
+                    $q->whereNotNull('origin_lat')
+                      ->orWhereNotNull('query');
+                })
                 ->inRandomOrder()
                 ->limit($limit)
-                ->get()
-                ->toArray();
+                ->get();
+
+            foreach ($rawSearches as $s) {
+                $olat = null;
+                $olng = null;
+                if (!empty($s->origin_lat)) {
+                    $olat = (float) $s->origin_lat;
+                    $olng = (float) $s->origin_lng;
+                } elseif (!empty($s->query['origin'])) {
+                    $olat = (float) ($s->query['origin'][0] ?? 0);
+                    $olng = (float) ($s->query['origin'][1] ?? 0);
+                }
+
+                $dlat = null;
+                $dlng = null;
+                if (!empty($s->destination_lat)) {
+                    $dlat = (float) $s->destination_lat;
+                    $dlng = (float) $s->destination_lng;
+                } elseif (!empty($s->query['destination'])) {
+                    $dlat = (float) ($s->query['destination'][0] ?? 0);
+                    $dlng = (float) ($s->query['destination'][1] ?? 0);
+                }
+
+                if ($olat && $olng && $dlat && $dlng) {
+                    $searches[] = [
+                        'origin_lat' => $olat,
+                        'origin_lng' => $olng,
+                        'destination_lat' => $dlat,
+                        'destination_lng' => $dlng,
+                    ];
+                }
+            }
         }
 
         $total = count($searches);
