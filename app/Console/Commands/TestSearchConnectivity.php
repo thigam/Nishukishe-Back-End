@@ -296,16 +296,20 @@ class TestSearchConnectivity extends Command
             $stationRaptor = app(\App\Services\StationRaptor::class);
             $stationRaptor->loadData();
 
+            $refProp = new \ReflectionProperty(\App\Services\StationRaptor::class, 'stopToStation');
+            $refProp->setAccessible(true);
+            $stopToStation = $refProp->getValue($stationRaptor);
+
             $mappedOrigin = false;
             foreach ($originStops as $o) {
-                if (isset($stationRaptor->stopToStation[$o['stop_id']])) {
+                if (isset($stopToStation[$o['stop_id']])) {
                     $mappedOrigin = true;
                 }
             }
 
             $mappedDest = false;
             foreach ($destStops as $d) {
-                if (isset($stationRaptor->stopToStation[$d['stop_id']])) {
+                if (isset($stopToStation[$d['stop_id']])) {
                     $mappedDest = true;
                 }
             }
