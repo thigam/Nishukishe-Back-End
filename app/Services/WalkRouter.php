@@ -20,22 +20,7 @@ class WalkRouter
      */
     public function route(float $fromLat, float $fromLng, float $toLat, float $toLng): ?array
     {
-        $isOsrm = false; // str_contains($this->base, '127.0.0.1'); 
-
-        // FORCE FALLBACK FOR DEMO (Skip HTTP calls)
-        if (true) {
-            // fallback straight line
-            $km = self::haversineKm($fromLat, $fromLng, $toLat, $toLng);
-            $distanceM = (int) round($km * 1000);
-            $durationS = (int) round(($km / 4.8) * 3600);
-
-            return [
-                'coords' => [[$fromLat, $fromLng], [$toLat, $toLng]],
-                'distance_m' => $distanceM,
-                'duration_s' => $durationS,
-                'steps' => [],
-            ];
-        }
+        $isOsrm = !str_contains($this->base, 'openrouteservice.org');
 
         if ($isOsrm) {
             // OSRM expects v1 GET path
