@@ -18,7 +18,8 @@ class TestSearchConnectivity extends Command
     protected $signature = 'app:test-search-connectivity
                             {--export : Export random failing searches to a JSON file}
                             {--file= : JSON file containing searches to test}
-                            {--limit=100 : Maximum number of searches to test}';
+                            {--limit=100 : Maximum number of searches to test}
+                            {--refresh : Clear the StationRaptor cache before running}';
 
     /**
      * The console command description.
@@ -32,6 +33,11 @@ class TestSearchConnectivity extends Command
      */
     public function handle()
     {
+        if ($this->option('refresh')) {
+            \Illuminate\Support\Facades\Cache::forget('station_raptor_data_v1');
+            $this->info("Cleared StationRaptor data cache.");
+        }
+
         if ($this->option('export')) {
             return $this->exportFailing();
         }
