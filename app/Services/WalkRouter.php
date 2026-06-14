@@ -28,7 +28,7 @@ class WalkRouter
             $url = "{$this->base}/{$coords}?overview=full&geometries=geojson";
 
             try {
-                $res = Http::timeout(2)->acceptJson()->get($url);
+                $res = Http::timeout(0.5)->acceptJson()->get($url);
 
                 if ($res->ok()) {
                     $route = $res->json('routes.0');

@@ -177,11 +177,11 @@ class TestSearchConnectivity extends Command
         }
 
         $this->info("Starting search connectivity test on {$total} searches...");
+        \Illuminate\Support\Facades\DB::connection()->disableQueryLog();
+
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        // Instantiate controller
-        $controller = app(RoutePlannerController::class);
         $successCount = 0;
         $durations = [];
         $resultsLog = [];
@@ -205,6 +205,7 @@ class TestSearchConnectivity extends Command
 
             $start = microtime(true);
             try {
+                $controller = app(RoutePlannerController::class);
                 $response = $controller->multilegRoute($request);
                 $end = microtime(true);
                 $durationMs = ($end - $start) * 1000;
@@ -216,8 +217,6 @@ class TestSearchConnectivity extends Command
                 if ($hasResult) {
                     $successCount++;
                 }
-
-
 
                 $resultsLog[] = [
                     'index' => $idx + 1,
@@ -244,6 +243,8 @@ class TestSearchConnectivity extends Command
                 Log::error("Test search failed with error: " . $e->getMessage());
             }
 
+            unset($controller);
+            gc_collect_cycles();
             $bar->advance();
         }
 
