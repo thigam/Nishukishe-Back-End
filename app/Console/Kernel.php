@@ -22,6 +22,7 @@ class Kernel extends ConsoleKernel
         RunAutomatedTests::class,
         SocialIngestCommand::class,
         \App\Console\Commands\SendDailySummaryEmail::class,
+        \App\Console\Commands\TestSearchConnectivity::class,
     ];
 
     /**

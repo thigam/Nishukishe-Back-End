@@ -15,6 +15,8 @@ class StationRaptor
     private $routeStations = [];
     private $routeStops = [];
     private $stopCoords = []; // Cache for stop lat/lng
+    private $directEdgeCache = [];
+    private $hubEdgesCache = [];
 
     public function loadData()
     {
@@ -404,44 +406,91 @@ class StationRaptor
         if ($from === $to)
             return 0;
 
+        $cacheKey = "{$from}_{$to}";
+        if (array_key_exists($cacheKey, $this->directEdgeCache)) {
+            return $this->directEdgeCache[$cacheKey];
+        }
+
         // 1. Check DB for direct edge
         $edge = TransferEdge::where('from_stop_id', $from)->where('to_stop_id', $to)->first();
         if ($edge) {
-            return $edge->walk_time_seconds;
+            return $this->directEdgeCache[$cacheKey] = $edge->walk_time_seconds;
         }
 
         // 2. Check for Hub Intersection (synthetic edge)
-        $fromHubs = TransferEdge::where('from_stop_id', $from)
-            ->where('target_is_hub', true)
-            ->get()
-            ->keyBy('to_stop_id');
-
-        if ($fromHubs->isEmpty())
-            return null;
-
-        $toHubs = TransferEdge::where('from_stop_id', $to)
-            ->where('target_is_hub', true)
-            ->get()
-            ->keyBy('to_stop_id');
-
-        if ($toHubs->isEmpty())
-            return null;
-
-        // Find common hubs
-        $commonHubs = $fromHubs->keys()->intersect($toHubs->keys());
-        if ($commonHubs->isEmpty())
-            return null;
-
-        // Find the fastest path through any common hub
         $bestTime = INF;
-        foreach ($commonHubs as $hubId) {
-            $time = $fromHubs[$hubId]->walk_time_seconds + $toHubs[$hubId]->walk_time_seconds;
-            if ($time < $bestTime) {
-                $bestTime = $time;
+        if (!array_key_exists($from, $this->hubEdgesCache)) {
+            $this->hubEdgesCache[$from] = TransferEdge::where('from_stop_id', $from)
+                ->where('target_is_hub', true)
+                ->get()
+                ->keyBy('to_stop_id');
+        }
+        $fromHubs = $this->hubEdgesCache[$from];
+
+        if (!$fromHubs->isEmpty()) {
+            if (!array_key_exists($to, $this->hubEdgesCache)) {
+                $this->hubEdgesCache[$to] = TransferEdge::where('from_stop_id', $to)
+                    ->where('target_is_hub', true)
+                    ->get()
+                    ->keyBy('to_stop_id');
+            }
+            $toHubs = $this->hubEdgesCache[$to];
+
+            if (!$toHubs->isEmpty()) {
+                // Find common hubs
+                $commonHubs = $fromHubs->keys()->intersect($toHubs->keys());
+                if (!$commonHubs->isEmpty()) {
+                    // Find the fastest path through any common hub
+                    foreach ($commonHubs as $hubId) {
+                        $time = $fromHubs[$hubId]->walk_time_seconds + $toHubs[$hubId]->walk_time_seconds;
+                        if ($time < $bestTime) {
+                            $bestTime = $time;
+                        }
+                    }
+                }
             }
         }
 
         // 1800 seconds = 30 minutes WALK_CAP
-        return ($bestTime <= 1800) ? $bestTime : null;
+        if ($bestTime <= 1800) {
+            return $this->directEdgeCache[$cacheKey] = $bestTime;
+        }
+
+        // 3. Same-station fallback (Straight-line estimate during search phase)
+        $sFrom = $this->stopToStation[$from] ?? null;
+        $sTo = $this->stopToStation[$to] ?? null;
+        if ($sFrom && $sTo && $sFrom === $sTo) {
+            // Offline straight-line fallback
+            $cFrom = $this->stopCoords[$from] ?? null;
+            $cTo = $this->stopCoords[$to] ?? null;
+            if ($cFrom && $cTo) {
+                $distKm = $this->haversineKm($cFrom['lat'], $cFrom['lng'], $cTo['lat'], $cTo['lng']);
+                // Assuming walking speed of 4.5 km/h
+                $seconds = (int) round(($distKm / 4.5) * 3600);
+                if ($seconds <= 1800) {
+                    return $this->directEdgeCache[$cacheKey] = $seconds;
+                }
+            }
+        }
+
+        return $this->directEdgeCache[$cacheKey] = null;
+    }
+
+    private function haversineKm($lat1, $lng1, $lat2, $lng2)
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat/2) * sin($dLat/2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($dLng/2) * sin($dLng/2);
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        return $earthRadius * $c;
+    }
+
+    public function clearCache()
+    {
+        $this->directEdgeCache = [];
+        $this->hubEdgesCache = [];
     }
 }
