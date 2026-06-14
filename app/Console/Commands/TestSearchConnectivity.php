@@ -211,12 +211,13 @@ class TestSearchConnectivity extends Command
                 $durations[] = $durationMs;
 
                 $content = json_decode($response->getContent(), true);
-                $routes = $content['routes'] ?? [];
+                $routes = array_merge($content['single_leg'] ?? [], $content['multi_leg'] ?? []);
                 $hasResult = !empty($routes);
-
                 if ($hasResult) {
                     $successCount++;
                 }
+
+
 
                 $resultsLog[] = [
                     'index' => $idx + 1,
