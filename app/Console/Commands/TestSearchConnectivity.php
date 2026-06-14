@@ -321,14 +321,22 @@ class TestSearchConnectivity extends Command
                 return "Destination stops not mapped to any station";
             }
 
-            // Check if RAPTOR station search found paths
+            // Check if RAPTOR station search found paths and if they expanded successfully
             $pathsFound = false;
+            $expansionsSucceeded = false;
+
             foreach ($originStops as $oStop) {
                 foreach ($destStops as $dStop) {
                     $results = $stationRaptor->search($oStop['stop_id'], $dStop['stop_id']);
                     if (!isset($results['error']) && !empty($results)) {
                         $pathsFound = true;
-                        break 2;
+                        foreach ($results as $path) {
+                            $detailed = $stationRaptor->expandPath($path, $oStop['stop_id'], $dStop['stop_id']);
+                            if (!empty($detailed)) {
+                                $expansionsSucceeded = true;
+                                break 2;
+                            }
+                        }
                     }
                 }
             }
@@ -336,8 +344,11 @@ class TestSearchConnectivity extends Command
             if (!$pathsFound) {
                 return "RAPTOR station search found no paths";
             }
+            if (!$expansionsSucceeded) {
+                return "All path expansions failed in expandPath (checkWalkingEdge/same-station failure)";
+            }
 
-            return "Filtered out in post-processing (long distance / redundant)";
+            return "Filtered out in post-processing (long distance / redundant / access-egress capped)";
 
         } catch (\Throwable $e) {
             return "Diagnostic failed: " . $e->getMessage();
