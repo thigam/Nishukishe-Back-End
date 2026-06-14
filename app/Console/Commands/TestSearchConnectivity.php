@@ -243,6 +243,9 @@ class TestSearchConnectivity extends Command
                 Log::error("Test search failed with error: " . $e->getMessage());
             }
 
+            if (app()->bound(\App\Services\StationRaptor::class)) {
+                app(\App\Services\StationRaptor::class)->clearCache();
+            }
             unset($controller);
             gc_collect_cycles();
             $bar->advance();

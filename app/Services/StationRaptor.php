@@ -487,4 +487,10 @@ class StationRaptor
         $c = 2 * atan2(sqrt($a), sqrt(1-$a));
         return $earthRadius * $c;
     }
+
+    public function clearCache()
+    {
+        $this->directEdgeCache = [];
+        $this->hubEdgesCache = [];
+    }
 }

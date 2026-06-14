@@ -561,6 +561,7 @@ class RoutePlannerController extends Controller
             ->whereIn('h3_index', $cellsBatch1)
             ->selectRaw("*, {$expr} AS distance", [$lat, $lng, $lat])
             ->orderBy('distance')
+            ->limit(50)
             ->get()
             ->filter(fn($d) => $d->stop !== null);
 
@@ -581,6 +582,7 @@ class RoutePlannerController extends Controller
                 ->whereIn('h3_index', $cellsBatch2)
                 ->selectRaw("*, {$expr} AS distance", [$lat, $lng, $lat])
                 ->orderBy('distance')
+                ->limit(100)
                 ->get()
                 ->filter(fn($d) => $d->stop !== null);
 
