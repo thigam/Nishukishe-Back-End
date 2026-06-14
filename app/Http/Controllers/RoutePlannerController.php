@@ -74,6 +74,8 @@ class RoutePlannerController extends Controller
     private array $routesAtStopCache = []; // stop_id => [srids...]
     private array $walkFromCache = []; // stop_id => [TransferEdge-like arrays]
     private array $isCbdStopCache = []; // stop_id => bool
+    private array $accessWalkCache = [];
+    private array $egressWalkCache = [];
 
     // Corridor whitelist (set per query)
     private ?array $corridorAllowedStops = null; // stop_id => true
@@ -2291,6 +2293,16 @@ class RoutePlannerController extends Controller
         if (!$firstStopId) {
             return null;
         }
+
+        if (isset($this->accessWalkCache[$firstStopId])) {
+            $cached = $this->accessWalkCache[$firstStopId];
+            if ($cached === 'capped') {
+                $capped = true;
+                return null;
+            }
+            return $cached;
+        }
+
         [$sLat, $sLng] = $this->getStopLL($firstStopId);
 
         $coords = [];
@@ -2309,6 +2321,7 @@ class RoutePlannerController extends Controller
         $distanceM = $this->measureWalkDistanceM($olat, $olng, $sLat, $sLng, $coords ?: null);
         if ($distanceM > self::ACCESS_EGRESS_CAP_M) {
             $capped = true;
+            $this->accessWalkCache[$firstStopId] = 'capped';
             return null;
         }
 
@@ -2316,7 +2329,7 @@ class RoutePlannerController extends Controller
             $mins = (int) ceil((($distanceM / 1000.0) / self::WALK_SPEED_KMPH) * 60.0);
         }
 
-        return [
+        $res = [
             'mode' => 'walk',
             'minutes' => $mins,
             'from_point' => ['label' => 'Origin', 'lat' => $olat, 'lng' => $olng],
@@ -2330,6 +2343,8 @@ class RoutePlannerController extends Controller
             ],
             'coordinates' => $coords,
         ];
+        $this->accessWalkCache[$firstStopId] = $res;
+        return $res;
     }
 
     private function buildEgressWalk(
@@ -2345,6 +2360,16 @@ class RoutePlannerController extends Controller
         if (!$lastStopId) {
             return null;
         }
+
+        if (isset($this->egressWalkCache[$lastStopId])) {
+            $cached = $this->egressWalkCache[$lastStopId];
+            if ($cached === 'capped') {
+                $capped = true;
+                return null;
+            }
+            return $cached;
+        }
+
         [$sLat, $sLng] = $this->getStopLL($lastStopId);
 
         $coords = [];
@@ -2363,6 +2388,7 @@ class RoutePlannerController extends Controller
         $distanceM = $this->measureWalkDistanceM($sLat, $sLng, $dlat, $dlng, $coords ?: null);
         if ($distanceM > self::ACCESS_EGRESS_CAP_M) {
             $capped = true;
+            $this->egressWalkCache[$lastStopId] = 'capped';
             return null;
         }
 
@@ -2370,7 +2396,7 @@ class RoutePlannerController extends Controller
             $mins = (int) ceil((($distanceM / 1000.0) / self::WALK_SPEED_KMPH) * 60.0);
         }
 
-        return [
+        $res = [
             'mode' => 'walk',
             'minutes' => $mins,
             'from_stop' => [
@@ -2384,6 +2410,8 @@ class RoutePlannerController extends Controller
             'to_point' => ['label' => 'Destination', 'lat' => $dlat, 'lng' => $dlng],
             'coordinates' => $coords,
         ];
+        $this->egressWalkCache[$lastStopId] = $res;
+        return $res;
     }
     /**
      * Merge nearest stops with regional hubs near a point.
@@ -2628,27 +2656,26 @@ class RoutePlannerController extends Controller
             // If run length >= 2 legs and walk bridge is feasible, replace
             if ($j - $i >= 2 && $startStop && $endStop && $startLat !== null && $endLat !== null) {
                 $m = $this->networkDistanceMOnTheFly($startStop, $endStop);
-                if ($m <= 0 || $m > $maxWalkM) {
-                    // try OSRM; buildWalkLeg persists when it has data
-                    if ($this->walkRouter) {
-                        $r = $this->walkRouter->route($startLat, $startLng, $endLat, $endLng);
-                        if ($r && ($r['coords'] ?? null)) {
-                            $m = $this->measureWalkDistanceM($startLat, $startLng, $endLat, $endLng, $r['coords']);
-                        }
-                    }
-                }
                 if ($m > 0 && $m <= $maxWalkM) {
                     $mins = (int) ceil((($m / 1000.0) / self::WALK_SPEED_KMPH) * 60.0);
-                    $w = $this->buildWalkLeg($startStop, $endStop, $mins) ?: [
-                        'mode' => 'walk',
-                        'minutes' => $mins,
-                        'from_stop' => ['stop_id' => $startStop, 'lat' => $startLat, 'lng' => $startLng],
-                        'to_stop' => ['stop_id' => $endStop, 'lat' => $endLat, 'lng' => $endLng],
-                        'coordinates' => [],
-                    ];
-                    $out[] = $w;
-                    $i = $j;
-                    continue;
+                    $w = $this->buildWalkLeg($startStop, $endStop, $mins);
+                    if ($w) {
+                        $out[] = $w;
+                        $i = $j;
+                        continue;
+                    }
+                } elseif ($m <= 0) {
+                    // Try routing and persisting via buildWalkLeg
+                    $estMins = (int) ceil((($this->haversineKm($startLat, $startLng, $endLat, $endLng) * 1000.0 / 1000.0) / self::WALK_SPEED_KMPH) * 60.0);
+                    $w = $this->buildWalkLeg($startStop, $endStop, $estMins);
+                    if ($w) {
+                        $m = $this->measureWalkDistanceM($startLat, $startLng, $endLat, $endLng, $w['coordinates'] ?? null);
+                        if ($m > 0 && $m <= $maxWalkM) {
+                            $out[] = $w;
+                            $i = $j;
+                            continue;
+                        }
+                    }
                 }
             }
 
