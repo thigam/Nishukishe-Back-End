@@ -321,37 +321,194 @@ class TestSearchConnectivity extends Command
                 return "Destination stops not mapped to any station";
             }
 
-            // Check if RAPTOR station search found paths and if they expanded successfully
-            $pathsFound = false;
-            $expansionsSucceeded = false;
-
+            // Trace path expansion
+            $rawPaths = [];
             foreach ($originStops as $oStop) {
                 foreach ($destStops as $dStop) {
+                    if ($oStop['stop_id'] === $dStop['stop_id']) continue;
                     $results = $stationRaptor->search($oStop['stop_id'], $dStop['stop_id']);
-                    if (!isset($results['error']) && !empty($results)) {
-                        $pathsFound = true;
+                    if (!isset($results['error'])) {
                         foreach ($results as $path) {
                             $detailed = $stationRaptor->expandPath($path, $oStop['stop_id'], $dStop['stop_id']);
                             if (!empty($detailed)) {
-                                $expansionsSucceeded = true;
-                                break 2;
+                                $converted = [];
+                                $converted[] = ['stop_id' => $oStop['stop_id'], 'label' => 'start'];
+                                $lastStop = $oStop['stop_id'];
+                                $valid = true;
+                                foreach ($detailed as $leg) {
+                                    if (!$leg['walk_valid'] || !$leg['from_stop'] || !$leg['to_stop']) {
+                                        $valid = false;
+                                        break;
+                                    }
+                                    if ($leg['from_stop'] !== $lastStop) {
+                                        $converted[] = ['stop_id' => $leg['from_stop'], 'label' => 'walk 5 min'];
+                                    }
+                                    $converted[] = ['stop_id' => $leg['to_stop'], 'label' => 'bus via ' . $leg['route_id']];
+                                    $lastStop = $leg['to_stop'];
+                                }
+                                if ($valid) {
+                                    $sig = json_encode($converted);
+                                    $rawPaths[$sig] = $converted;
+                                }
                             }
                         }
                     }
                 }
             }
 
-            if (!$pathsFound) {
-                return "RAPTOR station search found no paths";
-            }
-            if (!$expansionsSucceeded) {
+            $rawPaths = array_values($rawPaths);
+            if (empty($rawPaths)) {
                 return "All path expansions failed in expandPath (checkWalkingEdge/same-station failure)";
             }
 
-            return "Filtered out in post-processing (long distance / redundant / access-egress capped)";
+            // 1. Redundant transfers filter
+            $filteredRawPaths = [];
+            foreach ($rawPaths as $path) {
+                $redundant = false;
+                $prevSaccoRouteId = null;
+                foreach ($path as $step) {
+                    if (str_starts_with($step['label'], 'bus via ')) {
+                        $saccoRouteId = substr($step['label'], 8);
+                        if ($saccoRouteId && $prevSaccoRouteId && $saccoRouteId === $prevSaccoRouteId) {
+                            $redundant = true;
+                            break;
+                        }
+                        $prevSaccoRouteId = $saccoRouteId;
+                    }
+                }
+                if (!$redundant) {
+                    $filteredRawPaths[] = $path;
+                }
+            }
+
+            if (empty($filteredRawPaths)) {
+                return "Filtered out: All paths had redundant transfers (e.g. Bus A -> Bus A)";
+            }
+
+            // Populate controllers cache variables (stopsCache/routeCache) as needed
+            // By calling getStopLL/etc. or using Reflection
+            $refEnrich = new \ReflectionMethod(RoutePlannerController::class, 'enrichPath');
+            $refEnrich->setAccessible(true);
+
+            // Populate Route cache
+            $uniqueRouteIds = [];
+            $uniqueStopIds = [];
+            foreach ($filteredRawPaths as $path) {
+                foreach ($path as $step) {
+                    if (isset($step['stop_id'])) {
+                        $uniqueStopIds[] = (string) $step['stop_id'];
+                    }
+                    if (isset($step['label']) && str_starts_with($step['label'], 'bus via ')) {
+                        $uniqueRouteIds[] = substr($step['label'], 8);
+                    }
+                }
+            }
+            $uniqueRouteIds = array_values(array_unique(array_filter($uniqueRouteIds)));
+            if (!empty($uniqueRouteIds)) {
+                $routes = \App\Models\SaccoRoutes::with(['sacco', 'route', 'variations'])
+                    ->whereIn('sacco_route_id', $uniqueRouteIds)
+                    ->get()
+                    ->keyBy('sacco_route_id');
+
+                $refRouteCache = new \ReflectionProperty(RoutePlannerController::class, 'routeCache');
+                $refRouteCache->setAccessible(true);
+                $routeCache = $refRouteCache->getValue($controller);
+                foreach ($routes as $srid => $r) {
+                    $routeCache[$srid] = $r;
+                    $stopsArr = is_array($r->stop_ids) ? $r->stop_ids : [];
+                    if (count($stopsArr) >= 2) {
+                        $uniqueStopIds[] = (string) $stopsArr[0];
+                        $uniqueStopIds[] = (string) $stopsArr[count($stopsArr) - 1];
+                    }
+                }
+                $refRouteCache->setValue($controller, $routeCache);
+            }
+
+            $uniqueStopIds = array_values(array_unique(array_filter($uniqueStopIds)));
+            if (!empty($uniqueStopIds)) {
+                $stops = \App\Models\Stops::whereIn('stop_id', $uniqueStopIds)->get()->keyBy('stop_id');
+                $refStopsCache = new \ReflectionProperty(RoutePlannerController::class, 'stopsCache');
+                $refStopsCache->setAccessible(true);
+                $stopsCache = $refStopsCache->getValue($controller);
+                foreach ($stops as $sid => $s) {
+                    $stopsCache[$sid] = $s;
+                }
+                $refStopsCache->setValue($controller, $stopsCache);
+            }
+
+            $enriched = [];
+            foreach ($filteredRawPaths as $p) {
+                $enriched[] = $refEnrich->invoke($controller, $p, null, false);
+            }
+
+            $hasLongDistanceFraction = false;
+            $keptAfterFraction = [];
+            foreach ($enriched as $route) {
+                $ld = false;
+                foreach ($route['legs'] ?? [] as $leg) {
+                    if (!empty($leg['is_long_distance_fraction'])) {
+                        $ld = true;
+                        break;
+                    }
+                }
+                if ($ld) {
+                    $hasLongDistanceFraction = true;
+                } else {
+                    $keptAfterFraction[] = $route;
+                }
+            }
+
+            if (empty($keptAfterFraction) && $hasLongDistanceFraction) {
+                return "Filtered out: is_long_distance_fraction (fare > 200 KES used for < 45 km)";
+            }
+
+            // 3. Access/Egress capping
+            $refAccess = new \ReflectionMethod(RoutePlannerController::class, 'buildAccessWalk');
+            $refAccess->setAccessible(true);
+            $refEgress = new \ReflectionMethod(RoutePlannerController::class, 'buildEgressWalk');
+            $refEgress->setAccessible(true);
+
+            $keptAfterBookends = [];
+            $hadCappedBookends = false;
+
+            $routesToProcess = !empty($keptAfterFraction) ? $keptAfterFraction : $enriched;
+
+            foreach ($routesToProcess as $it) {
+                $legs = $it['legs'] ?? [];
+                if (!$legs) {
+                    $keptAfterBookends[] = $it;
+                    continue;
+                }
+                $accessCapped = false;
+                $egressCapped = false;
+
+                $first = $refAccess->invoke($controller, $legs[0], (float) $olat, (float) $olng, $accessCapped);
+                $last = $refEgress->invoke($controller, $legs[count($legs) - 1], (float) $dlat, (float) $dlng, $egressCapped);
+
+                if ($accessCapped || $egressCapped) {
+                    $hadCappedBookends = true;
+                    continue;
+                }
+                $keptAfterBookends[] = $it;
+            }
+
+            if (empty($keptAfterBookends) && $hadCappedBookends) {
+                return "Filtered out: Access/Egress walk distance capped (> 5 km)";
+            }
+
+            // 4. Outliers filter
+            $refOutliers = new \ReflectionMethod(RoutePlannerController::class, 'filterOutliers');
+            $refOutliers->setAccessible(true);
+            $keptAfterOutliers = $refOutliers->invoke($controller, $keptAfterBookends);
+
+            if (empty($keptAfterOutliers) && !empty($keptAfterBookends)) {
+                return "Filtered out: Discarded as statistical outliers (too long/expensive)";
+            }
+
+            return "Filtered out: unknown reason";
 
         } catch (\Throwable $e) {
-            return "Diagnostic failed: " . $e->getMessage();
+            return "Diagnostic failed: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine();
         }
     }
 }
