@@ -482,8 +482,11 @@ class TestSearchConnectivity extends Command
                 $accessCapped = false;
                 $egressCapped = false;
 
-                $first = $refAccess->invoke($controller, $legs[0], (float) $olat, (float) $olng, $accessCapped);
-                $last = $refEgress->invoke($controller, $legs[count($legs) - 1], (float) $dlat, (float) $dlng, $egressCapped);
+                $accessArgs = [$legs[0], (float) $olat, (float) $olng, &$accessCapped];
+                $first = $refAccess->invokeArgs($controller, $accessArgs);
+
+                $egressArgs = [$legs[count($legs) - 1], (float) $dlat, (float) $dlng, &$egressCapped];
+                $last = $refEgress->invokeArgs($controller, $egressArgs);
 
                 if ($accessCapped || $egressCapped) {
                     $hadCappedBookends = true;
