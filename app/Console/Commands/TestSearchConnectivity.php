@@ -248,6 +248,8 @@ class TestSearchConnectivity extends Command
             }
             unset($controller);
             gc_collect_cycles();
+            $mem = round(memory_get_usage() / 1024 / 1024, 2);
+            $this->info(" [Iteration " . ($idx + 1) . "] Memory: {$mem} MB");
             $bar->advance();
         }
 
