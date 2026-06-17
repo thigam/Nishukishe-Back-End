@@ -39,30 +39,31 @@ class SendDailySummaryEmail extends Command
      */
     public function handle()
     {
-        $today = today();
+        $startOfDay = today()->startOfDay();
+        $endOfDay = today()->endOfDay();
 
         // 1. Number of searches today
-        $searches = SearchLog::whereDate('created_at', $today)->count();
+        $searches = SearchLog::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
 
-        // 2. Unique visitors today
-        $uniqueVisitors = ActivityLog::whereDate('started_at', $today)
+        // 2. Unique visitors today (sessions active/updated today)
+        $uniqueVisitors = ActivityLog::whereBetween('updated_at', [$startOfDay, $endOfDay])
             ->whereNotNull('session_id')
             ->distinct('session_id')
             ->count('session_id');
 
         // 3. Incidents reported today
-        $incidents = Incident::whereDate('created_at', $today)->count();
+        $incidents = Incident::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
 
         // 4. Signups (Grouped)
-        $signups = User::whereDate('created_at', $today)->get()->groupBy('role');
+        $signups = User::whereBetween('created_at', [$startOfDay, $endOfDay])->get()->groupBy('role');
         $commuters = optional($signups->get(UserRole::USER))->count() ?? 0;
         $saccoMgrs = optional($signups->get(UserRole::SACCO))->count() ?? 0;
         $servicePersons = optional($signups->get(UserRole::SERVICE_PERSON))->count() ?? 0;
         $others = $signups->flatten()->count() - ($commuters + $saccoMgrs + $servicePersons);
 
         // 5. & 6. Signed In Today (Using ActivityLog joined with User)
-        // ActivityLog models have `user_id`. We filter 'started_at' today.
-        $activityLogs = ActivityLog::with('user')->whereDate('started_at', $today)->get();
+        // ActivityLog models active today
+        $activityLogs = ActivityLog::with('user')->whereBetween('updated_at', [$startOfDay, $endOfDay])->get();
 
         $managersLoggedIn = $activityLogs->filter(function ($log) {
             return $log->user && $log->user->role === UserRole::SACCO;
@@ -75,16 +76,27 @@ class SendDailySummaryEmail extends Command
         // 7. Sacco routes created today
         $routesCreated = 0;
         if (Schema::hasColumn('sacco_routes', 'created_at')) {
-            $routesCreated = SaccoRoute::whereDate('created_at', $today)->count();
+            $routesCreated = SaccoRoute::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
         }
 
         // 8. Super admin accesses
-        // Assuming super admin paths start with 'superadmin' or contain 'admin'
         $superAdminActivity = [];
         foreach ($activityLogs as $log) {
             $urls = $log->urls_visited ?? [];
             foreach ($urls as $url) {
-                // Handle both simple string path and complex array format
+                // Filter individual page views by timestamp to only include today's hits
+                $viewedAtStr = is_array($url) ? ($url['viewed_at'] ?? null) : null;
+                if ($viewedAtStr) {
+                    try {
+                        $viewedAt = \Carbon\Carbon::parse($viewedAtStr);
+                        if ($viewedAt->lt($startOfDay) || $viewedAt->gt($endOfDay)) {
+                            continue;
+                        }
+                    } catch (\Exception $e) {
+                        // ignore
+                    }
+                }
+
                 $urlStr = is_array($url) ? ($url['path'] ?? '') : (string) $url;
 
                 if (\Str::contains($urlStr, 'superadmin') || \Str::contains($urlStr, '/api/super-admin/')) {
@@ -101,15 +113,15 @@ class SendDailySummaryEmail extends Command
         })->values()->all();
 
         // 9. Additional Metrics
-        $activeVehicles = VehicleLiveLocation::whereDate('recorded_at', $today)
+        $activeVehicles = VehicleLiveLocation::whereBetween('recorded_at', [$startOfDay, $endOfDay])
             ->distinct('vehicle_id')
             ->count('vehicle_id');
 
-        $newSaccos = Sacco::whereDate('join_date', $today)->count();
+        $newSaccos = Sacco::whereBetween('join_date', [$startOfDay, $endOfDay])->count();
 
         // 10. Emails received today per nishukishe address
         $receivedEmailsCount = Email::where('type', 'incoming')
-            ->whereDate('created_at', $today)
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
             ->select('recipient_email', \DB::raw('count(*) as count'))
             ->groupBy('recipient_email')
             ->orderBy('count', 'desc')
@@ -127,6 +139,19 @@ class SendDailySummaryEmail extends Command
         foreach ($activityLogs as $log) {
             $urls = $log->urls_visited ?? [];
             foreach ($urls as $url) {
+                // Filter individual page views by timestamp to only include today's hits
+                $viewedAtStr = is_array($url) ? ($url['viewed_at'] ?? null) : null;
+                if ($viewedAtStr) {
+                    try {
+                        $viewedAt = \Carbon\Carbon::parse($viewedAtStr);
+                        if ($viewedAt->lt($startOfDay) || $viewedAt->gt($endOfDay)) {
+                            continue;
+                        }
+                    } catch (\Exception $e) {
+                        // ignore
+                    }
+                }
+
                 $urlStr = is_array($url) ? ($url['path'] ?? '') : (string) $url;
                 $urlStr = ltrim($urlStr, '/'); // Normalize
 
@@ -145,7 +170,7 @@ class SendDailySummaryEmail extends Command
         }
 
         // 12. Suggested routes today
-        $suggestedRoutesCount = SuggestedRoute::whereDate('created_at', $today)->count();
+        $suggestedRoutesCount = SuggestedRoute::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
 
         // 13. Active notifications enabled users (web and mobile)
         $activeWebNotifications = \App\Models\DeviceToken::where('is_active', true)
@@ -156,20 +181,48 @@ class SendDailySummaryEmail extends Command
             ->count();
 
         // 14. Notifications Sent and Clicked Today
-        $notificationsSent = \App\Models\IncidentNotification::whereDate('created_at', $today)->count();
-        $notificationsClicked = \App\Models\IncidentNotification::whereDate('created_at', $today)
+        $notificationsSent = \App\Models\IncidentNotification::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
+        $notificationsClicked = \App\Models\IncidentNotification::whereBetween('created_at', [$startOfDay, $endOfDay])
             ->whereNotNull('clicked_at')
             ->count();
 
         // 15. Search Error Reports (Searches with no results and missing routes)
-        $emptySearchesCount = SearchLog::whereDate('created_at', $today)->where('has_result', false)->count();
-        $missingRoutes = SearchLog::whereDate('created_at', $today)
+        $emptySearchesCount = SearchLog::whereBetween('created_at', [$startOfDay, $endOfDay])->where('has_result', false)->count();
+        $missingRoutes = SearchLog::whereBetween('created_at', [$startOfDay, $endOfDay])
             ->where('has_result', false)
             ->get()
             ->map(function ($log) {
                 $q = $log->query;
-                $origin = $q['origin'] ?? $log->origin_slug ?? 'Unknown';
-                $destination = $q['destination'] ?? $log->destination_slug ?? 'Unknown';
+                if (is_string($q)) {
+                    $q = json_decode($q, true);
+                }
+
+                $origin = 'Unknown';
+                if (is_array($q)) {
+                    $origVal = $q['origin'] ?? null;
+                    if (is_array($origVal)) {
+                        $origin = $origVal['name'] ?? $origVal['label'] ?? 'Unknown';
+                    } elseif (is_string($origVal)) {
+                        $origin = $origVal;
+                    }
+                }
+                if ($origin === 'Unknown') {
+                    $origin = $log->origin_slug ?? 'Unknown';
+                }
+
+                $destination = 'Unknown';
+                if (is_array($q)) {
+                    $destVal = $q['destination'] ?? null;
+                    if (is_array($destVal)) {
+                        $destination = $destVal['name'] ?? $destVal['label'] ?? 'Unknown';
+                    } elseif (is_string($destVal)) {
+                        $destination = $destVal;
+                    }
+                }
+                if ($destination === 'Unknown') {
+                    $destination = $log->destination_slug ?? 'Unknown';
+                }
+
                 return "{$origin} ➔ {$destination}";
             })
             ->unique()
@@ -177,14 +230,28 @@ class SendDailySummaryEmail extends Command
             ->toArray();
 
         // 16. Client-Side Error Logs
-        $clientErrorsCount = \App\Models\ClientErrorLog::whereDate('created_at', $today)->count();
-        $clientErrorSamples = \App\Models\ClientErrorLog::whereDate('created_at', $today)
+        $clientErrorsCount = \App\Models\ClientErrorLog::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
+        $clientErrorSamples = \App\Models\ClientErrorLog::whereBetween('created_at', [$startOfDay, $endOfDay])
             ->select('message', \DB::raw('count(*) as count'))
             ->groupBy('message')
             ->orderBy('count', 'desc')
             ->limit(10)
             ->get()
             ->toArray();
+
+        // 17. Google Play Clicks Today (from UserActionLog)
+        $playStoreClicks = \App\Models\UserActionLog::where('action', 'play_store_click')
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->count();
+
+        // 18. Popup Impressions Today (from UserActionLog)
+        $androidPromoImpressions = \App\Models\UserActionLog::where('action', 'android_promo_impression')
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->count();
+
+        $webPushImpressions = \App\Models\UserActionLog::where('action', 'web_push_prompt_impression')
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->count();
 
         $stats = [
             'searches' => $searches,
@@ -219,6 +286,9 @@ class SendDailySummaryEmail extends Command
             'missing_routes' => $missingRoutes,
             'client_errors_count' => $clientErrorsCount,
             'client_error_samples' => $clientErrorSamples,
+            'play_store_clicks' => $playStoreClicks,
+            'android_promo_impressions' => $androidPromoImpressions,
+            'web_push_impressions' => $webPushImpressions,
         ];
 
         Mail::to('thigamatthew7@gmail.com')->send(new AdminDailySummaryEmail($stats));

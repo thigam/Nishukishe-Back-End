@@ -28,8 +28,9 @@ class AdminDailySummaryEmail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $env = ucfirst(config('app.env', 'production'));
         return new Envelope(
-            subject: 'Admin Daily Summary Email',
+            subject: "[{$env}] Admin Daily Summary Email",
         );
     }
 

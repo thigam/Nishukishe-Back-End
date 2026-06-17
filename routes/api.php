@@ -267,6 +267,9 @@ Route::middleware([CorsMiddleware::class, LogUserActivity::class])->group(functi
         ->name('bookings.tickets.download');
 
     Route::post('analytics/directions-log', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logDirectionSearch']);
+    Route::post('analytics/play-store-click', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logPlayStoreClick']);
+    Route::post('analytics/popup-impression', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logPopupImpression']);
+    Route::post('support/contact', [\App\Http\Controllers\UserFeedbackController::class, 'storeContact']);
 
     Route::post('search-feedback', [\App\Http\Controllers\SearchFeedbackController::class, 'store']);
     Route::get('admin/analytics/search-feedback', [\App\Http\Controllers\SearchFeedbackController::class, 'analytics'])
