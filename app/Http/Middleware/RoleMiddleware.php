@@ -65,28 +65,26 @@ class RoleMiddleware
 
     private function getDeniedRoutesForRole(string $role): array
     {
+        $restricted = [
+            'addNewSaccoRoute',
+            'sacco.update',
+            'sacco.delete',
+            'pre-clean/*',
+            'superadmin*',
+            'routes*',
+            'saccoroutes.index',
+            'direction*',
+            'post-clean*',
+            'stops*',
+            'counties*',
+            'variations*'
+        ];
+
         return match ($role) {
-            'commuter' => [
-                'addNewSaccoRoute',
-                'sacco.update',
-                'sacco.delete',
-                'pre-clean/*',
-                'superadmin*',
-                'routes*',
-                'direction*',
-                'post-clean*',
-                'stops*',
-                'counties*'
-
-
-            ],
             'sacco_admin' => ['superadmin*'],
             'nishukishe_service_person' => ['superadmin*'],
-            'driver' => ['superadmin*'],
-            'government_official' => ['superadmin*'],
-            'vehicle_owner' => ['superadmin*'],
             'super_admin' => [],
-            default => ['superadmin*'],
+            default => $restricted,
         };
     }
 }
