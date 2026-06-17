@@ -13,6 +13,9 @@
         - **Mobile Notification Users:** {{ $stats['active_mobile_notifications'] }}
         - **Notifications Sent Today:** {{ $stats['notifications_sent'] }}
         - **Notifications Clicked Today:** {{ $stats['notifications_clicked'] }}
+        - **Google Play Store Clicks Today:** {{ $stats['play_store_clicks'] ?? 0 }}
+        - **Android App Promo Impressions Today:** {{ $stats['android_promo_impressions'] ?? 0 }}
+        - **Web Push Prompt Impressions Today:** {{ $stats['web_push_impressions'] ?? 0 }}
     </x-mail::panel>
 
     <x-mail::panel>

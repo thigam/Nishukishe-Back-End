@@ -168,10 +168,12 @@ class RoutePlannerController extends Controller
         $destStops = $this->seedStopsWithHubs($dlat, $dlng, 3, 6, 2, 5);
 
 
+        $perfStart = microtime(true);
         // --- NEW: Station-Based RAPTOR ---
         \Log::info("Starting Station-Based RAPTOR...");
         $this->stationRaptor->loadData();
-        \Log::info("Station Data Loaded.");
+        \Log::info("Station Data Loaded in " . round((microtime(true) - $perfStart) * 1000, 2) . " ms");
+        $tRAPTOR = microtime(true);
 
         $rawPaths = [];
         \Log::info("Origin seeds: " . $originStops->count() . ", Dest seeds: " . $destStops->count());
@@ -230,7 +232,8 @@ class RoutePlannerController extends Controller
             }
         }
         $rawPaths = array_values($rawPaths);
-        \Log::info("Raw Paths Constructed: " . count($rawPaths));
+        \Log::info("Raw Paths Constructed: " . count($rawPaths) . " in " . round((microtime(true) - $tRAPTOR) * 1000, 2) . " ms");
+        $tFilters = microtime(true);
 
         /*
         // --- OLD: Hierarchical corridor gating with widen-once fallback ---
@@ -330,6 +333,8 @@ class RoutePlannerController extends Controller
                 $this->stopsCache[$sid] = $s;
             }
         }
+        \Log::info("Prefetch completed in " . round((microtime(true) - $tFilters) * 1000, 2) . " ms");
+        $tEnrich = microtime(true);
 
         $enriched = array_map(fn($p) => $this->enrichPath($p, $departAfter, $this->isEventDay), $rawPaths);
         // NEW: collapse tiny CBD bus hops into walks (and re-merge)
@@ -358,6 +363,8 @@ class RoutePlannerController extends Controller
 
         // Only slice to top 12 AFTER dedupe, not before
         $unique = array_slice($unique, 0, self::MAX_CANDIDATES);
+        \Log::info("Enrich and Collapse completed in " . round((microtime(true) - $tEnrich) * 1000, 2) . " ms");
+        $tWalks = microtime(true);
         // Add access + egress walking legs
         $withBookends = array_values(array_filter(array_map(function ($it) use ($olat, $olng, $dlat, $dlng) {
             $legs = $it['legs'] ?? [];
@@ -408,6 +415,8 @@ class RoutePlannerController extends Controller
 
             return $it;
         }, $withBookends);
+        \Log::info("Access/Egress walks built in " . round((microtime(true) - $tWalks) * 1000, 2) . " ms");
+        $tTraffic = microtime(true);
 
         // --- NEW: Enrich Top 3 with Traffic Data ---
         // We only take the first 3 candidates to save API costs
@@ -422,6 +431,8 @@ class RoutePlannerController extends Controller
         }, $topCandidates);
 
         $finalResults = array_merge($enrichedTop, $remainingCandidates);
+        \Log::info("Traffic Enrichment completed in " . round((microtime(true) - $tTraffic) * 1000, 2) . " ms");
+        $tDiversify = microtime(true);
 
         // --- NEW: Diversify Results ---
         \Log::info("DEBUG: Calling diversifyResults now...");
@@ -466,6 +477,7 @@ class RoutePlannerController extends Controller
             return $costA <=> $costB;
         });
 
+        \Log::info("Diversify and Sorting completed in " . round((microtime(true) - $tDiversify) * 1000, 2) . " ms. Total query time: " . round((microtime(true) - $perfStart) * 1000, 2) . " ms");
         return response()->json(['single_leg' => [], 'multi_leg' => $finalResults]);
 
     }

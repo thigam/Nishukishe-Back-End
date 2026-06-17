@@ -130,4 +130,39 @@ class SuperAdminAnalyticsController extends Controller
 
         return response()->json(['pings' => $heatmapData]);
     }
+
+    public function logPlayStoreClick(Request $request): JsonResponse
+    {
+        \App\Models\UserActionLog::create([
+            'action' => 'play_store_click',
+            'user_id' => auth()->id(),
+            'user_role' => auth()->user()?->role,
+            'metadata' => [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'platform' => 'web_popup',
+            ]
+        ]);
+
+        return response()->json(['message' => 'Logged successfully']);
+    }
+
+    public function logPopupImpression(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'type' => ['required', 'string', 'in:android_promo,web_push_prompt'],
+        ]);
+
+        \App\Models\UserActionLog::create([
+            'action' => $validated['type'] . '_impression',
+            'user_id' => auth()->id(),
+            'user_role' => auth()->user()?->role,
+            'metadata' => [
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]
+        ]);
+
+        return response()->json(['message' => 'Logged successfully']);
+    }
 }
