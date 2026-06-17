@@ -18,7 +18,7 @@ class UserFeedbackController extends Controller
         \App\Models\Email::create([
             'uuid' => (string) \Illuminate\Support\Str::uuid(),
             'sender_email' => $validated['email'],
-            'recipient_email' => 'support@nishukishe.app',
+            'recipient_email' => 'support@nishukishe.com',
             'subject' => 'Contact Form Support: ' . $validated['subject'],
             'body_html' => '<h3>Message from ' . e($validated['name']) . '</h3><p>' . nl2br(e($validated['message'])) . '</p>',
             'type' => 'incoming',
