@@ -43,7 +43,7 @@ class HealthStatusController extends Controller
         $dashboard['artisan_output'] = trim($output->fetch());
         $dashboard['exit_code'] = $exitCode;
 
-        $statusCode = 200;
+        $statusCode = ($dashboard['status'] ?? '') === 'failed' ? 422 : 200;
 
         return response()->json($dashboard, $statusCode);
     }

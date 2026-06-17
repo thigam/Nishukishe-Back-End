@@ -9,13 +9,24 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class OrderPersistenceTest extends TestCase
 {
-    // use RefreshDatabase; // Don't wipe the DB, just create a temp record
+    use RefreshDatabase;
 
     public function test_stop_order_preservation()
     {
+        // Create an authenticating Super Admin user
+        $user = User::create([
+            'name' => 'Admin User',
+            'email' => 'admin@example.com',
+            'phone' => '+254700000000',
+            'password' => bcrypt('password'),
+            'role' => \App\Models\UserRole::SUPER_ADMIN,
+            'is_approved' => true,
+            'is_verified' => true,
+        ]);
+
         // 1. Create a dummy PreClean Route
         $saccoRouteId = 'TEST_ORDER_001';
-        $pre = PreCleanSaccoRoute::create([
+        PreCleanSaccoRoute::create([
             'sacco_id' => 'TEST_SACCO',
             'route_id' => 'TEST_ROUTE_ID',
             'sacco_route_id' => $saccoRouteId,
@@ -25,8 +36,6 @@ class OrderPersistenceTest extends TestCase
             'coordinates' => [],
             'status' => 'pending'
         ]);
-
-        echo "Created Route: " . json_encode($pre->stop_ids) . "\n";
 
         // 2. Simulate API Call to Update with REVERSED order
         $payload = [
@@ -40,29 +49,13 @@ class OrderPersistenceTest extends TestCase
             'status' => 'pending'
         ];
 
-        // Manually instantiate controller or just force the update logic to verify DB behavior
-        // But better to use the HTTP test client to test the actual route/controller
-        $user = User::first();
-        if (!$user) {
-            echo "No user found to auth.\n";
-            return;
-        }
+        $response = $this->actingAs($user)->postJson('/pre-clean/routes', $payload);
 
-        $response = $this->actingAs($user)->postJson('/api/pre-clean/routes', $payload);
+        // Assert update is successful (200 OK)
+        $response->assertStatus(200);
 
-        $response->assertStatus(200); // 200 = Updated (201 = Created)
-
-        // 3. Verify DB
-        $updated = PreCleanSaccoRoute::where('sacco_route_id', $saccoRouteId)->first();
-        echo "Updated Route: " . json_encode($updated->stop_ids) . "\n";
-
-        if ($updated->stop_ids === [3, 2, 1]) {
-            echo "SUCCESS: Order was preserved!\n";
-        } else {
-            echo "FAILURE: Order was NOT preserved.\n";
-        }
-
-        // Cleanup
-        $updated->delete();
+        // 3. Verify order preservation in Database
+        $updated = PreCleanSaccoRoute::where('sacco_route_id', $saccoRouteId)->firstOrFail();
+        $this->assertEquals([3, 2, 1], $updated->stop_ids);
     }
 }

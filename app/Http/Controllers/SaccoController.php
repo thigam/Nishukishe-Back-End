@@ -28,17 +28,20 @@ class SaccoController extends Controller
      *
      * @return JsonResponse
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        //all where sacco_email in user table  is_approved = 1
-        // $saccos = Sacco::whereIn('sacco_email', function($query) {
-        //     $query->select('email')
-        //           ->from('users')
-        //           ->where('is_approved', 1);
-        // })->get();
+        $token = $request->header('X-Nishukishe-Internal-Token');
+        $expectedToken = config('services.nishukishe.internal_token');
+
+        $isAuthorized = ($expectedToken && $token === $expectedToken) ||
+            auth()->guard('sanctum')->check();
+
+        if (!$isAuthorized) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
         $saccos = Sacco::all();
         return response()->json($saccos);
-
     }
 
     public function search(Request $request): JsonResponse

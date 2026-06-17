@@ -6,7 +6,7 @@
     <x-mail::panel>
         ### General Engagement
         - **Total Searches:** {{ $stats['searches'] }}
-        - **Unique Visitors:** {{ $stats['unique_visitors'] }}
+        - **Unique Visitors:** {{ $stats['unique_visitors'] }} (+{{ $stats['unique_visitors_bots'] ?? 0 }} bots)
         - **Incidents Reported:** {{ $stats['incidents'] }}
         - **Routes Suggested Today:** {{ $stats['suggested_routes_count'] }}
         - **Web Notification Users:** {{ $stats['active_web_notifications'] }}
@@ -76,11 +76,11 @@
 
     <x-mail::panel>
         ### Page Traffic Insights (Hits)
-        - **Stage Pages:** {{ $stats['page_visits']['stage_pages'] }}
-        - **Sacco Pages:** {{ $stats['page_visits']['sacco_pages'] }}
-        - **Direction Pages:** {{ $stats['page_visits']['direction_pages'] }}
-        - **Blog Pages:** {{ $stats['page_visits']['blog_pages'] }}
-        - **Discover Page:** {{ $stats['page_visits']['discover_page'] }}
+        - **Stage Pages:** {{ $stats['page_visits']['stage_pages'] }} (+{{ $stats['page_visits_bots']['stage_pages'] ?? 0 }} bots)
+        - **Sacco Pages:** {{ $stats['page_visits']['sacco_pages'] }} (+{{ $stats['page_visits_bots']['sacco_pages'] ?? 0 }} bots)
+        - **Direction Pages:** {{ $stats['page_visits']['direction_pages'] }} (+{{ $stats['page_visits_bots']['direction_pages'] ?? 0 }} bots)
+        - **Blog Pages:** {{ $stats['page_visits']['blog_pages'] }} (+{{ $stats['page_visits_bots']['blog_pages'] ?? 0 }} bots)
+        - **Discover Page:** {{ $stats['page_visits']['discover_page'] }} (+{{ $stats['page_visits_bots']['discover_page'] ?? 0 }} bots)
     </x-mail::panel>
 
     @if(count($stats['super_admin_activity']) > 0)

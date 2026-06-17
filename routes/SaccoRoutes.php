@@ -14,8 +14,8 @@ use Jenssegers\Agent\Agent;
 
 use App\Http\Kernel;
 
-Route::prefix('routes')->controller(SaccoRoutesController::class)->middleware([CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class])->group(function () {
-    Route::get('/', 'index')->name('saccoroutes.index');
+Route::prefix('routes')->controller(SaccoRoutesController::class)->middleware([CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class, 'throttle:public-sacco-api'])->group(function () {
+    Route::get('/', 'index')->middleware('auth:sanctum')->name('saccoroutes.index');
     Route::get('/id/{id}', 'showByRoute')->name('sacco.show');
     Route::get('/sacco/{sacco}', 'showBySacco')->name('sacco.sacco');
     Route::get('/{id}/directions', 'directions')->name('routes.directions');
@@ -32,7 +32,7 @@ Route::prefix('routes')->controller(SaccoRoutesController::class)->middleware([C
     });
 });
 
-Route::prefix('sacco')->controller(SaccoController::class)->middleware([CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class])->group(function () {
+Route::prefix('sacco')->controller(SaccoController::class)->middleware([CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class, 'throttle:public-sacco-api'])->group(function () {
     Route::get('/', 'index')->name('sacco.index');
     Route::get('/{id}', 'findById')->name('sacco.findById');
     Route::get('/name/{name}', 'findByName')->name('sacco.findByName');
@@ -44,8 +44,9 @@ Route::prefix('sacco')->controller(SaccoController::class)->middleware([CorsMidd
     Route::get('/safari/{id}', 'getSafari')->name('sacco.getSafari');
     Route::post('/safari/{id}/book', 'bookSafariSeat')->name('sacco.bookSafariSeat');
 
+    Route::post('/create', 'saccoRegister')->name('sacco.create');
+
     Route::middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_saccos')->group(function () {
-        Route::post('/create', 'saccoRegister')->name('sacco.create');
         Route::post('/placeholder', 'createPlaceholderSacco')->name('sacco.placeholder');
     });
 
@@ -54,7 +55,7 @@ Route::prefix('sacco')->controller(SaccoController::class)->middleware([CorsMidd
 
 Route::prefix('sacco/{sacco}/stages')
     ->controller(SaccoStageController::class)
-    ->middleware([CorsMiddleware::class, LogUserActivity::class])
+    ->middleware([CorsMiddleware::class, LogUserActivity::class, 'throttle:public-sacco-api'])
     ->group(function () {
         Route::get('/', 'index')->name('sacco.stages.index');
         Route::get('/{stage}', 'show')->name('sacco.stages.show');

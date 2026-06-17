@@ -47,6 +47,8 @@ class LogUserActivity
             $sessionId = 'ip:' . $request->ip();
         }
 
+        $isBot = $agent->isRobot();
+
         // Find or create activity log entry
         $log = ActivityLog::firstOrCreate(
             ['session_id' => $sessionId],
@@ -55,9 +57,14 @@ class LogUserActivity
                 'ip_address' => $request->ip(),
                 'device' => $agent->device() ?: ($agent->isDesktop() ? 'Desktop' : 'Unknown'),
                 'browser' => $agent->browser() ?: 'Unknown',
+                'is_bot' => $isBot,
                 'started_at' => now(),
             ]
         );
+
+        if ($log->is_bot !== $isBot) {
+            $log->is_bot = $isBot || $log->is_bot;
+        }
 
         // Track visited URLs
         $urls = $log->urls_visited ?? [];

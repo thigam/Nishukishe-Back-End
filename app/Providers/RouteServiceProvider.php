@@ -64,6 +64,16 @@ class RouteServiceProvider extends ServiceProvider
                 return response()->json($payload, 429, $headers);
             });
         });
+
+        RateLimiter::for('public-sacco-api', function (Request $request) {
+            $key = sprintf('public-sacco-api|%s', $request->user()?->id ?? $request->ip());
+
+            return Limit::perMinute(30)->by($key)->response(function (Request $request, array $headers) {
+                return response()->json([
+                    'message' => 'Too many requests. Please slow down and try again later.',
+                ], 429, $headers);
+            });
+        });
     }
 }
 

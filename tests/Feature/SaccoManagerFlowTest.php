@@ -16,11 +16,9 @@ class SaccoManagerFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    private static string $saccoId;
-    private static int $userId;
-
-    public function test_01_signup(): void
+    public function test_sacco_manager_flow(): void
     {
+        // 1. Signup
         Event::fake([UserRegistered::class]);
 
         $signupPayload = [
@@ -34,16 +32,16 @@ class SaccoManagerFlowTest extends TestCase
         $response = $this->postJson('/sacco/create', $signupPayload);
         $response->assertStatus(201);
 
-        self::$saccoId = $response->json('sacco.sacco_id');
+        $saccoId = $response->json('sacco.sacco_id');
         $user = User::where('email', 'horizon@example.com')->firstOrFail();
-        self::$userId = $user->id;
+        $user->permissions()->createMany([
+            ['permission' => 'manage_stages'],
+            ['permission' => 'manage_routes'],
+        ]);
 
         Event::assertDispatched(UserRegistered::class);
-    }
 
-    public function test_02_email_verification(): void
-    {
-        $user = User::findOrFail(self::$userId);
+        // 2. Email verification
         $verificationUrl = URL::temporarySignedRoute(
             'verification.verify',
             now()->addMinutes(5),
@@ -52,63 +50,91 @@ class SaccoManagerFlowTest extends TestCase
 
         $this->getJson($verificationUrl)->assertStatus(200);
         $this->assertTrue($user->refresh()->is_verified);
-    }
 
-    public function test_03_login_and_profile_update(): void
-    {
-        $user = User::findOrFail(self::$userId);
+        // 3. Login and profile update
         $user->update(['is_approved' => true, 'password' => bcrypt('password123')]);
-        Sacco::where('sacco_id', self::$saccoId)->update(['is_approved' => true]);
+        
+        $tier = \App\Models\SaccoTier::create([
+            'name' => 'Premium',
+            'price' => 0.00,
+            'is_active' => true,
+            'features' => ['route_creation' => true],
+        ]);
+
+        Sacco::where('sacco_id', $saccoId)->update([
+            'is_approved' => true,
+            'tier_id' => $tier->id,
+        ]);
+
+        \App\Models\SaccoManager::create([
+            'user_id' => $user->id,
+            'sacco_id' => $saccoId,
+        ]);
 
         $this->postJson('/auth/login', [
             'email' => 'horizon@example.com',
             'password' => 'password123',
+            'role' => UserRole::SACCO,
         ])->assertStatus(200);
 
-        $this->putJson("/sacco/" . self::$saccoId . "/profile", [
+        $this->putJson("/sacco/" . $saccoId . "/profile", [
             'profile_headline' => 'The best view of the horizon',
             'profile_description' => 'Comfortable rides guaranteed.',
             'share_slug' => 'horizon-bus',
         ])->assertStatus(200);
-    }
 
-    public function test_04_stage_creation_and_slug_fetch(): void
-    {
-        $user = User::findOrFail(self::$userId);
+        // 4. Stage creation and slug fetch
         $this->actingAs($user, 'sanctum');
 
-        $this->postJson("/sacco/" . self::$saccoId . "/stages", [
+        $res = $this->postJson("/sacco/" . $saccoId . "/stages", [
             'name' => 'Nairobi CBD Terminus',
             'latitude' => -1.286389,
             'longitude' => 36.817223,
-        ])->assertStatus(201);
+        ]);
+        $res->assertStatus(201);
 
         $this->getJson("/sacco/horizon-bus/stages")
             ->assertStatus(200)
             ->assertJsonFragment(['name' => 'Nairobi CBD Terminus']);
-    }
 
-    public function test_05_route_submission_and_cleanup(): void
-    {
-        $user = User::findOrFail(self::$userId);
-        $this->actingAs($user, 'sanctum');
-
-        $stage = SaccoStage::where('sacco_id', self::$saccoId)->firstOrFail();
+        // 5. Route submission and cleanup
+        $stage = SaccoStage::where('sacco_id', $saccoId)->firstOrFail();
 
         $routeResponse = $this->postJson("/routes/add", [
-            'route_number' => '0',
-            'stops' => [
-                ['stop_name' => 'Nairobi CBD Terminus', 'order' => 1, 'stage_id' => $stage->id],
-                ['stop_name' => 'End', 'order' => 2, 'latitude' => -1.3, 'longitude' => 36.8],
-            ],
-            'sacco_id' => self::$saccoId,
+            'sacco_id' => $saccoId,
+            'route_number' => '102',
+            'route_id' => 'nairobi-thika-102',
+            'route_start_stop' => 'Nairobi CBD Terminus',
+            'route_end_stop' => 'Thika',
+            'stop_ids' => ['stop_1', 'stop_2'],
+            'coordinates' => [[36.8, -1.2], [36.9, -1.1]],
+            'peak_fare' => 150,
+            'off_peak_fare' => 100,
+            'currency' => 'KES',
+            'county_id' => 1,
+            'mode' => 'bus',
+            'waiting_time' => 10,
         ]);
 
         $routeResponse->assertStatus(201);
         $routeId = $routeResponse->json('route_id');
 
+        \App\Models\PostCleanSaccoRoute::create([
+            'pre_clean_id' => $routeResponse->json('id'),
+            'sacco_id' => $saccoId,
+            'route_id' => $routeId,
+            'sacco_route_id' => $routeResponse->json('sacco_route_id'),
+            'route_number' => '102',
+            'route_start_stop' => 'Nairobi CBD Terminus',
+            'route_end_stop' => 'Thika',
+            'direction_index' => 1,
+            'coordinates' => [[36.8, -1.2], [36.9, -1.1]],
+            'stop_ids' => ['stop_1', 'stop_2'],
+        ]);
+
         $this->postJson("/routes/{$routeId}/request-cleanup", [
-            'corrections' => 'Fix it please',
+            'sacco_id' => $saccoId,
+            'notes' => 'Fix it please',
         ])->assertSuccessful();
     }
 }

@@ -49,6 +49,8 @@ class ActivityLogPageViewController extends Controller
             $shouldSetCookie = true;
         }
 
+        $isBot = $agent->isRobot();
+
         $log = ActivityLog::firstOrCreate(
             ['session_id' => $sessionId],
             [
@@ -56,9 +58,14 @@ class ActivityLogPageViewController extends Controller
                 'ip_address' => $request->ip(),
                 'device' => $agent->device() ?: ($agent->isDesktop() ? 'Desktop' : 'Unknown'),
                 'browser' => $agent->browser() ?: 'Unknown',
+                'is_bot' => $isBot,
                 'started_at' => now(),
             ]
         );
+
+        if ($log->is_bot !== $isBot) {
+            $log->is_bot = $isBot || $log->is_bot;
+        }
 
         if ($log->user_id === null && $userId) {
             $log->user_id = $userId;

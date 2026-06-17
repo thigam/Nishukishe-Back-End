@@ -16,16 +16,19 @@ class RoleMiddleware
         $user = Auth::user();
 
 
-        // Assign default role if missing
-        if (empty($user->role)) {
+        // Assign default role if missing or fallback to a dummy guest user
+        if (!$user) {
             $user = User::where('email', "johndoe@nishukishe.com")->first();
+            if ($user) {
+                $user->role = 'commuter';
+                $user->save();
+            } else {
+                $user = new User();
+                $user->role = 'commuter';
+            }
+        } elseif (empty($user->role)) {
             $user->role = 'commuter';
             $user->save();
-        }
-
-        // Fallback to a default user for testing
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
         if ($user->role === UserRole::SERVICE_PERSON && $user->is_approved != 1) {

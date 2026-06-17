@@ -13,6 +13,7 @@ class ActivityLog extends Model
         'ip_address',
         'device',
         'browser',
+        'is_bot',
         'started_at',
         'ended_at',
         'duration_seconds',
@@ -21,6 +22,7 @@ class ActivityLog extends Model
     ];
 
     protected $casts = [
+        'is_bot' => 'boolean',
         'urls_visited' => 'array',
         'routes_searched' => 'array',
         'started_at' => 'datetime',
