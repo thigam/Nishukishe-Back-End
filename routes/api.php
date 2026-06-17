@@ -241,49 +241,51 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
 Route::middleware([CorsMiddleware::class, LogUserActivity::class])->group(function () {
     Route::post('paystack/verify', [\App\Http\Controllers\PaystackController::class, 'verify'])->name('paystack.verify');
     Route::post('jenga/callback', [JengaController::class, 'callback'])->name('jenga.callback');
-    Route::get('payments/{payment}', [JengaController::class, 'show'])->name('payments.show');
-    Route::get('payments/reference/{payment:provider_reference}', [JengaController::class, 'show'])->name('payments.show.reference');
-    Route::get('comments/{subjectType}/{subjectId}', [CommentController::class, 'index'])
-        ->name('comments.index');
-    Route::get('bookables/tours', [PublicBookableController::class, 'tourEvents'])
-        ->name('bookings.tours.index');
-    Route::get('bookables/tours/suggestions', [PublicBookableController::class, 'tourSuggestions'])
-        ->name('bookings.tours.suggestions');
-    Route::get('bookables/tours/{slug}', [PublicBookableController::class, 'showTourEvent'])
-        ->name('bookings.tours.show');
-    Route::get('public/tembea/operators/{slug}', [PublicTembeaOperatorController::class, 'show'])
-        ->name('public.tembea.operators.show');
-    Route::get('bookables/safaris/options', [PublicBookableController::class, 'safariOptions'])
-        ->name('bookings.safaris.options');
-    Route::get('bookables/safaris/search', [PublicBookableController::class, 'searchSafaris'])
-        ->name('bookings.safaris.search');
-    Route::get('bookables/safaris/{bookable}', [PublicBookableController::class, 'safariDetail'])
-        ->name('bookings.safaris.show');
-    Route::post('bookables/{bookable}/checkout', [BookableCheckoutController::class, 'checkout'])
-        ->name('bookings.checkout');
-    Route::post('bookables/{bookable}/hold', [BookableCheckoutController::class, 'hold'])
-        ->name('bookings.hold');
-    Route::get('bookings/{booking}/tickets/pdf', TicketDownloadController::class)
-        ->name('bookings.tickets.download');
+    Route::middleware('throttle:public-sacco-api')->group(function () {
+        Route::get('payments/{payment}', [JengaController::class, 'show'])->middleware('auth:sanctum')->name('payments.show');
+        Route::get('payments/reference/{payment:provider_reference}', [JengaController::class, 'show'])->middleware('auth:sanctum')->name('payments.show.reference');
+        Route::get('comments/{subjectType}/{subjectId}', [CommentController::class, 'index'])
+            ->name('comments.index');
+        Route::get('bookables/tours', [PublicBookableController::class, 'tourEvents'])
+            ->name('bookings.tours.index');
+        Route::get('bookables/tours/suggestions', [PublicBookableController::class, 'tourSuggestions'])
+            ->name('bookings.tours.suggestions');
+        Route::get('bookables/tours/{slug}', [PublicBookableController::class, 'showTourEvent'])
+            ->name('bookings.tours.show');
+        Route::get('public/tembea/operators/{slug}', [PublicTembeaOperatorController::class, 'show'])
+            ->name('public.tembea.operators.show');
+        Route::get('bookables/safaris/options', [PublicBookableController::class, 'safariOptions'])
+            ->name('bookings.safaris.options');
+        Route::get('bookables/safaris/search', [PublicBookableController::class, 'searchSafaris'])
+            ->name('bookings.safaris.search');
+        Route::get('bookables/safaris/{bookable}', [PublicBookableController::class, 'safariDetail'])
+            ->name('bookings.safaris.show');
+        Route::post('bookables/{bookable}/checkout', [BookableCheckoutController::class, 'checkout'])
+            ->name('bookings.checkout');
+        Route::post('bookables/{bookable}/hold', [BookableCheckoutController::class, 'hold'])
+            ->name('bookings.hold');
+        Route::get('bookings/{booking}/tickets/pdf', TicketDownloadController::class)
+            ->name('bookings.tickets.download');
 
-    Route::post('analytics/directions-log', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logDirectionSearch']);
-    Route::post('analytics/play-store-click', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logPlayStoreClick']);
-    Route::post('analytics/popup-impression', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logPopupImpression']);
-    Route::post('support/contact', [\App\Http\Controllers\UserFeedbackController::class, 'storeContact']);
+        Route::post('analytics/directions-log', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logDirectionSearch']);
+        Route::post('analytics/play-store-click', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logPlayStoreClick']);
+        Route::post('analytics/popup-impression', [\App\Http\Controllers\SuperAdminAnalyticsController::class, 'logPopupImpression']);
+        Route::post('support/contact', [\App\Http\Controllers\UserFeedbackController::class, 'storeContact']);
 
-    Route::post('search-feedback', [\App\Http\Controllers\SearchFeedbackController::class, 'store']);
-    Route::get('admin/analytics/search-feedback', [\App\Http\Controllers\SearchFeedbackController::class, 'analytics'])
-        ->middleware([\App\Http\Middleware\RoleMiddleware::class . ':super_admin']);
+        Route::post('search-feedback', [\App\Http\Controllers\SearchFeedbackController::class, 'store']);
+        Route::get('admin/analytics/search-feedback', [\App\Http\Controllers\SearchFeedbackController::class, 'analytics'])
+            ->middleware([\App\Http\Middleware\RoleMiddleware::class . ':super_admin']);
 
-    Route::get('/direction-threads', [App\Http\Controllers\DirectionThreadController::class, 'index']);
-    Route::get('/directions', [App\Http\Controllers\DirectionsController::class, 'index']);
-    Route::post('directions/comments', [\App\Http\Controllers\DirectionCommentController::class, 'store']);
+        Route::get('/direction-threads', [App\Http\Controllers\DirectionThreadController::class, 'index']);
+        Route::get('/directions', [App\Http\Controllers\DirectionsController::class, 'index']);
+        Route::post('directions/comments', [\App\Http\Controllers\DirectionCommentController::class, 'store']);
+    });
 
 
 
 
     // Parcel Management (requires Sacco Premium tier)
-    Route::middleware(\App\Http\Middleware\EnsureParcelFeatureActive::class)->group(function () {
+    Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureParcelFeatureActive::class])->group(function () {
         // Agent Onboarding & Management
         Route::post('sacco-admin/parcel-agents/invite', [\App\Http\Controllers\AgentInvitationController::class, 'invite']);
         Route::get('sacco-admin/{saccoId}/parcel-agents', [\App\Http\Controllers\ParcelAgentController::class, 'index']);

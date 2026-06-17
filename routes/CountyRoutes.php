@@ -10,7 +10,7 @@ use App\Http\Middleware\LogUserActivity;
 use App\Http\Middleware\RoleMiddleware;
 
 
-Route::prefix('/counties')->controller(CountiesController::class)->middleware([CorsMiddleware::class,LogUserActivity::class,RoleMiddleware::class])->group(function () {
+Route::prefix('/counties')->controller(CountiesController::class)->middleware([CorsMiddleware::class, LogUserActivity::class, 'throttle:public-sacco-api'])->group(function () {
     Route::get('/', 'index')->name('counties.index');
     Route::get('/{county_id}', 'find')->name('counties.show');
 });

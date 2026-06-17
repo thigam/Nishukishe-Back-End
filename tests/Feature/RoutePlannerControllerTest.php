@@ -14,6 +14,10 @@ use Illuminate\Testing\Fluent\AssertableJson;
 use Mockery;
 use Tests\TestCase;
 
+/**
+ * @runTestsInSeparateProcesses
+ * @preserveGlobalState disabled
+ */
 class RoutePlannerControllerTest extends TestCase
 {
     use \Illuminate\Foundation\Testing\RefreshDatabase;

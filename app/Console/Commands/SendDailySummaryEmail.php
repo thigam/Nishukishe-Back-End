@@ -48,6 +48,13 @@ class SendDailySummaryEmail extends Command
         // 2. Unique visitors today (sessions active/updated today)
         $uniqueVisitors = ActivityLog::whereBetween('updated_at', [$startOfDay, $endOfDay])
             ->whereNotNull('session_id')
+            ->where('is_bot', false)
+            ->distinct('session_id')
+            ->count('session_id');
+
+        $uniqueBots = ActivityLog::whereBetween('updated_at', [$startOfDay, $endOfDay])
+            ->whereNotNull('session_id')
+            ->where('is_bot', true)
             ->distinct('session_id')
             ->count('session_id');
 
@@ -63,7 +70,14 @@ class SendDailySummaryEmail extends Command
 
         // 5. & 6. Signed In Today (Using ActivityLog joined with User)
         // ActivityLog models active today
-        $activityLogs = ActivityLog::with('user')->whereBetween('updated_at', [$startOfDay, $endOfDay])->get();
+        $activityLogs = ActivityLog::with('user')
+            ->whereBetween('updated_at', [$startOfDay, $endOfDay])
+            ->where('is_bot', false)
+            ->get();
+
+        $botActivityLogs = ActivityLog::whereBetween('updated_at', [$startOfDay, $endOfDay])
+            ->where('is_bot', true)
+            ->get();
 
         $managersLoggedIn = $activityLogs->filter(function ($log) {
             return $log->user && $log->user->role === UserRole::SACCO;
@@ -169,6 +183,44 @@ class SendDailySummaryEmail extends Command
             }
         }
 
+        $botStageVisits = 0;
+        $botSaccoVisits = 0;
+        $botDirectionVisits = 0;
+        $botBlogVisits = 0;
+        $botDiscoverVisits = 0;
+
+        foreach ($botActivityLogs as $log) {
+            $urls = $log->urls_visited ?? [];
+            foreach ($urls as $url) {
+                $viewedAtStr = is_array($url) ? ($url['viewed_at'] ?? null) : null;
+                if ($viewedAtStr) {
+                    try {
+                        $viewedAt = \Carbon\Carbon::parse($viewedAtStr);
+                        if ($viewedAt->lt($startOfDay) || $viewedAt->gt($endOfDay)) {
+                            continue;
+                        }
+                    } catch (\Exception $e) {
+                        // ignore
+                    }
+                }
+
+                $urlStr = is_array($url) ? ($url['path'] ?? '') : (string) $url;
+                $urlStr = ltrim($urlStr, '/'); // Normalize
+
+                if (\Str::is(['*stages/*', '*stages'], $urlStr)) {
+                    $botStageVisits++;
+                } elseif (\Str::startsWith($urlStr, 'discover/') && !\Str::contains($urlStr, '/stages')) {
+                    $botSaccoVisits++;
+                } elseif ($urlStr === 'discover' || $urlStr === 'discover/') {
+                    $botDiscoverVisits++;
+                } elseif (\Str::startsWith($urlStr, 'directions/')) {
+                    $botDirectionVisits++;
+                } elseif (\Str::startsWith($urlStr, 'blog/')) {
+                    $botBlogVisits++;
+                }
+            }
+        }
+
         // 12. Suggested routes today
         $suggestedRoutesCount = SuggestedRoute::whereBetween('created_at', [$startOfDay, $endOfDay])->count();
 
@@ -256,6 +308,7 @@ class SendDailySummaryEmail extends Command
         $stats = [
             'searches' => $searches,
             'unique_visitors' => $uniqueVisitors,
+            'unique_visitors_bots' => $uniqueBots,
             'incidents' => $incidents,
             'signups' => [
                 'commuters' => $commuters,
@@ -276,6 +329,13 @@ class SendDailySummaryEmail extends Command
                 'direction_pages' => $directionVisits,
                 'blog_pages' => $blogVisits,
                 'discover_page' => $discoverVisits,
+            ],
+            'page_visits_bots' => [
+                'stage_pages' => $botStageVisits,
+                'sacco_pages' => $botSaccoVisits,
+                'direction_pages' => $botDirectionVisits,
+                'blog_pages' => $botBlogVisits,
+                'discover_page' => $botDiscoverVisits,
             ],
             'suggested_routes_count' => $suggestedRoutesCount,
             'active_web_notifications' => $activeWebNotifications,

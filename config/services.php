@@ -112,5 +112,9 @@ return [
         'service_account_path' => env('FCM_SERVICE_ACCOUNT_PATH', storage_path('app/firebase/service-account.json')),
     ],
 
+    'nishukishe' => [
+        'internal_token' => env('NISHUKISHE_INTERNAL_TOKEN'),
+    ],
+
 ];
 

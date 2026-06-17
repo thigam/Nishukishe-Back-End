@@ -47,6 +47,8 @@ class SaccoManagerApprovalController extends Controller
             return response()->json(['message' => 'User is not a Sacco Manager.'], 400);
         }
 
+        $tempPassword = Str::random(12);
+        $user->password = Hash::make($tempPassword);
         $user->is_approved = true;
         $user->is_verified = true;
         // If not already verified, set verified_at to now for the 72h window
@@ -56,7 +58,8 @@ class SaccoManagerApprovalController extends Controller
         Log::info('Sacco Manager approved via Service UI', ['user_id' => $user->id, 'email' => $user->email]);
 
         return response()->json([
-            'message' => 'Sacco Manager approved successfully.'
+            'message' => 'Sacco Manager approved successfully.',
+            'temp_password' => $tempPassword
         ]);
     }
 

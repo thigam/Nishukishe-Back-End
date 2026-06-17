@@ -24,6 +24,7 @@ class BlogWorkflowTest extends TestCase
             'is_verified' => true,
             'is_approved' => true,
         ]);
+        $serviceUser->permissions()->create(['permission' => 'manage_blogs']);
 
         $superAdmin = User::create([
             'name' => 'Super Admin',
@@ -80,6 +81,7 @@ class BlogWorkflowTest extends TestCase
             'is_verified' => true,
             'is_approved' => true,
         ]);
+        $serviceUser->permissions()->create(['permission' => 'manage_blogs']);
 
         $superAdmin = User::create([
             'name' => 'Super Admin',
@@ -123,6 +125,7 @@ class BlogWorkflowTest extends TestCase
             'is_verified' => true,
             'is_approved' => true,
         ]);
+        $author->permissions()->create(['permission' => 'manage_blogs']);
 
         $otherServiceUser = User::create([
             'name' => 'Author Two',
@@ -133,6 +136,7 @@ class BlogWorkflowTest extends TestCase
             'is_verified' => true,
             'is_approved' => true,
         ]);
+        $otherServiceUser->permissions()->create(['permission' => 'manage_blogs']);
 
         $postId = $this->actingAs($author, 'sanctum')->postJson('/api/v1/blogs', [
             'title' => 'Blog owned by author one',

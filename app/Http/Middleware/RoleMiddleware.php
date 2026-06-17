@@ -16,16 +16,19 @@ class RoleMiddleware
         $user = Auth::user();
 
 
-        // Assign default role if missing
-        if (empty($user->role)) {
+        // Assign default role if missing or fallback to a dummy guest user
+        if (!$user) {
             $user = User::where('email', "johndoe@nishukishe.com")->first();
+            if ($user) {
+                $user->role = 'commuter';
+                $user->save();
+            } else {
+                $user = new User();
+                $user->role = 'commuter';
+            }
+        } elseif (empty($user->role)) {
             $user->role = 'commuter';
             $user->save();
-        }
-
-        // Fallback to a default user for testing
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
         if ($user->role === UserRole::SERVICE_PERSON && $user->is_approved != 1) {
@@ -62,28 +65,26 @@ class RoleMiddleware
 
     private function getDeniedRoutesForRole(string $role): array
     {
+        $restricted = [
+            'addNewSaccoRoute',
+            'sacco.update',
+            'sacco.delete',
+            'pre-clean/*',
+            'superadmin*',
+            'routes*',
+            'saccoroutes.index',
+            'direction*',
+            'post-clean*',
+            'stops*',
+            'counties*',
+            'variations*'
+        ];
+
         return match ($role) {
-            'commuter' => [
-                'addNewSaccoRoute',
-                'sacco.update',
-                'sacco.delete',
-                'pre-clean/*',
-                'superadmin*',
-                'routes*',
-                'direction*',
-                'post-clean*',
-                'stops*',
-                'counties*'
-
-
-            ],
             'sacco_admin' => ['superadmin*'],
             'nishukishe_service_person' => ['superadmin*'],
-            'driver' => ['superadmin*'],
-            'government_official' => ['superadmin*'],
-            'vehicle_owner' => ['superadmin*'],
             'super_admin' => [],
-            default => ['superadmin*'],
+            default => $restricted,
         };
     }
 }

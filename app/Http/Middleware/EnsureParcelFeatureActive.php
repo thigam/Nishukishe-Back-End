@@ -16,7 +16,7 @@ class EnsureParcelFeatureActive
         $saccoId = $request->route('saccoId') ?? $request->input('sacco_id');
 
         // If saccoId not directly provided, look up from user's agent/manager record
-        if (!$saccoId) {
+        if (!$saccoId && $user) {
             $agent = ParcelAgent::where('user_id', $user->id)->first();
             $manager = $agent ? null : SaccoManager::where('user_id', $user->id)->first();
             $saccoId = $agent?->sacco_id ?? $manager?->sacco_id;

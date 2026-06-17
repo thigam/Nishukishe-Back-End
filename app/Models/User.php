@@ -75,6 +75,18 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(UserPermission::class);
     }
 
+    public function sacco()
+    {
+        return $this->hasOneThrough(
+            Sacco::class,
+            SaccoManager::class,
+            'user_id',
+            'sacco_id',
+            'id',
+            'sacco_id'
+        );
+    }
+
     public function parcelAgents(): HasMany
     {
         return $this->hasMany(ParcelAgent::class);

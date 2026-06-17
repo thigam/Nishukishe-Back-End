@@ -11,7 +11,7 @@ use App\Http\Middleware\LogUserActivity;
 use App\Http\Kernel;
 use Jenssegers\Agent\Agent;
 
-Route::prefix('/direction')->controller(DirectionsController::class)->middleware([RoleMiddleware::class,CorsMiddleware::class,LogUserActivity::class])->group(function () {
+Route::prefix('/direction')->controller(DirectionsController::class)->middleware([CorsMiddleware::class, 'auth:sanctum', RoleMiddleware::class, LogUserActivity::class])->group(function () {
     Route::get('/', 'index')->name('direction.index');
     Route::get('/{$heading}','show')->name('direction.show');
     Route::get('/routes/{route}','showRoutes')->name('direction.routes'); 

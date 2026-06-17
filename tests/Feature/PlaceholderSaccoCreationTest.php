@@ -22,6 +22,7 @@ class PlaceholderSaccoCreationTest extends TestCase
             \App\Http\Middleware\CorsMiddleware::class,
             \App\Http\Middleware\RoleMiddleware::class,
             \App\Http\Middleware\LogUserActivity::class,
+            \App\Http\Middleware\CheckServiceAccess::class,
         ]);
 
         $payload = [

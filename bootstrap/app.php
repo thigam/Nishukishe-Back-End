@@ -18,13 +18,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('notifications:send-onboarding-tips')->cron('*/25 * * * *');
     })
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->trustProxies(at: '*');
+
+        $middleware->prepend(\App\Http\Middleware\TrustCloudflareHeaders::class);
+
         $middleware->alias([
             'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
             'cors' => \App\Http\Middleware\CorsMiddleware::class,
             'role' => \App\Http\Middleware\RoleMiddleware::class,
-        ]);
-        $middleware->alias([
-            'abilities' =>checkAbilities::class,
+            'verify.tier' => \App\Http\Middleware\VerifySaccoTier::class,
+            'abilities' => checkAbilities::class,
             'ability' => checkAbility::class,
         ]);
     })

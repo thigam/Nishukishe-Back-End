@@ -248,6 +248,13 @@ class RouteReviewFlowTest extends TestCase
             'is_approved' => 1,
         ]);
 
+        $user->permissions()->create(['permission' => 'manage_routes']);
+
+        \App\Models\SaccoManager::create([
+            'user_id' => $user->id,
+            'sacco_id' => $saccoId,
+        ]);
+
         Sanctum::actingAs($user, ['*']);
         $this->actingAs($user, 'sanctum');
 
