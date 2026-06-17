@@ -8,7 +8,7 @@ use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\LogUserActivity;
 
 Route::prefix('variations')->controller(VariationController::class)
-    ->middleware(CorsMiddleware::class,RoleMiddleware::class,LogUserActivity::class)
+    ->middleware([CorsMiddleware::class, 'auth:sanctum', RoleMiddleware::class, LogUserActivity::class])
     ->group(function () {
         Route::post('/', 'store')->name('variations.store');
     });
