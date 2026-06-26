@@ -41,8 +41,9 @@ class RoutePlannerController extends Controller
     private const CBD_MIN_M = 450;   // min bus leg length in CBD
     private const NONCBD_MIN_M = 550;   // min bus leg length elsewhere
     private const JUMP_K = 10;     // how many transfer stops to jump to per scan
-    private const WALK_CAP_M = 1500;   // max walk to consider a transfer candidate
-    private const ACCESS_EGRESS_CAP_M = 5000; // cap access/egress walks in metres
+    private const WALK_CAP_M = 1500;           // max walk to consider a transfer candidate
+    private const ACCESS_EGRESS_CAP_M = 5000;  // normal cap for access/egress walks in metres
+    private const ACCESS_EGRESS_BODA_CAP_M = 15000; // extended cap — used only when normal cap yields 0 results
 
     // Very rough CBD polygon (replace with better outline when convenient)
     private array $CBD_POLY = [
@@ -76,6 +77,7 @@ class RoutePlannerController extends Controller
     private array $isCbdStopCache = []; // stop_id => bool
     private array $accessWalkCache = [];
     private array $egressWalkCache = [];
+    private bool $extendedAccessMode = false; // true when retrying with boda-distance cap
 
     // Corridor whitelist (set per query)
     private ?array $corridorAllowedStops = null; // stop_id => true
@@ -391,6 +393,47 @@ class RoutePlannerController extends Controller
             $it['legs'] = $out;
             return $it;
         }, $unique), fn($it) => $it !== null));
+
+        // --- BODA FALLBACK ---
+        // If no results survive the 5 km walk cap, retry once with a 15 km cap.
+        // Legs built this way will carry access_mode='boda' so the frontend can
+        // display "Take a boda/taxi to [stop]" instead of "Walk".
+        if (empty($withBookends)) {
+            \Log::info("No results within 5 km walk cap — retrying with extended (boda) cap");
+            $this->extendedAccessMode = true;
+            // Clear only the 'capped' entries so we re-evaluate with the wider limit
+            $this->accessWalkCache = array_filter($this->accessWalkCache, fn($v) => $v !== 'capped');
+            $this->egressWalkCache = array_filter($this->egressWalkCache, fn($v) => $v !== 'capped');
+
+            $withBookends = array_values(array_filter(array_map(function ($it) use ($olat, $olng, $dlat, $dlng) {
+                $legs = $it['legs'] ?? [];
+                if (!$legs)
+                    return $it;
+
+                $accessCapped = false;
+                $egressCapped = false;
+
+                $first = $this->buildAccessWalk($legs[0], $olat, $olng, $accessCapped);
+                $last = $this->buildEgressWalk($legs[count($legs) - 1], $dlat, $dlng, $egressCapped);
+
+                if ($accessCapped || $egressCapped) {
+                    return null;
+                }
+
+                $out = [];
+                if ($first)
+                    $out[] = $first;
+                $out = array_merge($out, $legs);
+                if ($last)
+                    $out[] = $last;
+
+                $it['legs'] = $out;
+                return $it;
+            }, $unique), fn($it) => $it !== null));
+
+            \Log::info("Boda-mode retry yielded " . count($withBookends) . " results");
+            $this->extendedAccessMode = false; // reset for any subsequent usage
+        }
 
         $withSummary = array_map(function ($it) {
             $legs = $it['legs'] ?? [];
@@ -887,7 +930,7 @@ class RoutePlannerController extends Controller
                     $bestHubId = null;
                     $bestTime = INF;
                     foreach ($commonHubs as $hubId) {
-                        $time = clone $fromHubEdges[$hubId]->walk_time_seconds + $toHubEdges[$hubId]->walk_time_seconds;
+                        $time = $fromHubEdges[$hubId]->walk_time_seconds + $toHubEdges[$hubId]->walk_time_seconds;
                         if ($time < $bestTime) {
                             $bestTime = $time;
                             $bestHubId = $hubId;
@@ -2306,8 +2349,10 @@ class RoutePlannerController extends Controller
             return null;
         }
 
-        if (isset($this->accessWalkCache[$firstStopId])) {
-            $cached = $this->accessWalkCache[$firstStopId];
+        // Cache key is mode-aware so normal and boda results are stored separately
+        $cacheKey = $firstStopId . ($this->extendedAccessMode ? '_boda' : '');
+        if (isset($this->accessWalkCache[$cacheKey])) {
+            $cached = $this->accessWalkCache[$cacheKey];
             if ($cached === 'capped') {
                 $capped = true;
                 return null;
@@ -2330,10 +2375,11 @@ class RoutePlannerController extends Controller
             }
         }
 
+        $capM = $this->extendedAccessMode ? self::ACCESS_EGRESS_BODA_CAP_M : self::ACCESS_EGRESS_CAP_M;
         $distanceM = $this->measureWalkDistanceM($olat, $olng, $sLat, $sLng, $coords ?: null);
-        if ($distanceM > self::ACCESS_EGRESS_CAP_M) {
+        if ($distanceM > $capM) {
             $capped = true;
-            $this->accessWalkCache[$firstStopId] = 'capped';
+            $this->accessWalkCache[$cacheKey] = 'capped';
             return null;
         }
 
@@ -2342,20 +2388,21 @@ class RoutePlannerController extends Controller
         }
 
         $res = [
-            'mode' => 'walk',
-            'minutes' => $mins,
-            'from_point' => ['label' => 'Origin', 'lat' => $olat, 'lng' => $olng],
-            'to_stop' => [
-                'stop_id' => $firstStopId,
+            'mode'         => 'walk',
+            'access_mode'  => $this->extendedAccessMode ? 'boda' : 'walk',
+            'minutes'      => $mins,
+            'from_point'   => ['label' => 'Origin', 'lat' => $olat, 'lng' => $olng],
+            'to_stop'      => [
+                'stop_id'   => $firstStopId,
                 'stop_name' => $firstLeg['mode'] === 'bus'
                     ? $firstLeg['board_stop']['stop_name']
                     : $firstLeg['from_stop']['stop_name'],
-                'lat' => $sLat,
-                'lng' => $sLng,
+                'lat'  => $sLat,
+                'lng'  => $sLng,
             ],
             'coordinates' => $coords,
         ];
-        $this->accessWalkCache[$firstStopId] = $res;
+        $this->accessWalkCache[$cacheKey] = $res;
         return $res;
     }
 
@@ -2373,8 +2420,9 @@ class RoutePlannerController extends Controller
             return null;
         }
 
-        if (isset($this->egressWalkCache[$lastStopId])) {
-            $cached = $this->egressWalkCache[$lastStopId];
+        $cacheKey = $lastStopId . ($this->extendedAccessMode ? '_boda' : '');
+        if (isset($this->egressWalkCache[$cacheKey])) {
+            $cached = $this->egressWalkCache[$cacheKey];
             if ($cached === 'capped') {
                 $capped = true;
                 return null;
@@ -2397,10 +2445,11 @@ class RoutePlannerController extends Controller
             }
         }
 
+        $capM = $this->extendedAccessMode ? self::ACCESS_EGRESS_BODA_CAP_M : self::ACCESS_EGRESS_CAP_M;
         $distanceM = $this->measureWalkDistanceM($sLat, $sLng, $dlat, $dlng, $coords ?: null);
-        if ($distanceM > self::ACCESS_EGRESS_CAP_M) {
+        if ($distanceM > $capM) {
             $capped = true;
-            $this->egressWalkCache[$lastStopId] = 'capped';
+            $this->egressWalkCache[$cacheKey] = 'capped';
             return null;
         }
 
@@ -2409,22 +2458,24 @@ class RoutePlannerController extends Controller
         }
 
         $res = [
-            'mode' => 'walk',
-            'minutes' => $mins,
-            'from_stop' => [
-                'stop_id' => $lastStopId,
+            'mode'        => 'walk',
+            'access_mode' => $this->extendedAccessMode ? 'boda' : 'walk',
+            'minutes'     => $mins,
+            'from_stop'   => [
+                'stop_id'   => $lastStopId,
                 'stop_name' => $lastLeg['mode'] === 'bus'
                     ? $lastLeg['alight_stop']['stop_name']
                     : $lastLeg['to_stop']['stop_name'],
-                'lat' => $sLat,
-                'lng' => $sLng,
+                'lat'  => $sLat,
+                'lng'  => $sLng,
             ],
-            'to_point' => ['label' => 'Destination', 'lat' => $dlat, 'lng' => $dlng],
+            'to_point'    => ['label' => 'Destination', 'lat' => $dlat, 'lng' => $dlng],
             'coordinates' => $coords,
         ];
-        $this->egressWalkCache[$lastStopId] = $res;
+        $this->egressWalkCache[$cacheKey] = $res;
         return $res;
     }
+
     /**
      * Merge nearest stops with regional hubs near a point.
      * - $baseCount/$maxK feed into your existing nearestStops()

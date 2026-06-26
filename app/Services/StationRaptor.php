@@ -112,7 +112,7 @@ class StationRaptor
 
         $validPaths = [];
 
-        for ($k = 1; $k <= 2; $k++) {
+        for ($k = 1; $k <= 3; $k++) {
             $prevRound = $rounds[$k - 1];
             $currentRound = [];
 
