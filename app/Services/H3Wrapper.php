@@ -17,7 +17,7 @@ class H3Wrapper
                 "int latLngToCell(const LatLng *g, int res, H3Index *out);\n" .
                 "int maxGridDiskSize(int k, int64_t *out);\n" .
                 "int gridDisk(H3Index origin, int k, H3Index *out);\n",
-                '/usr/local/lib/libh3.so'
+                file_exists('/usr/local/lib/libh3.so') ? '/usr/local/lib/libh3.so' : 'libh3.so'
             );
         }
     }

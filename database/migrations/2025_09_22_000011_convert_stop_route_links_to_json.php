@@ -122,10 +122,7 @@ return new class extends Migration
     private function dropIndexIfExists(string $table, string $indexName): void
     {
         try {
-            Schema::table($table, function (Blueprint $t) use ($indexName) {
-                // Works for normal or unique indexes as long as the name matches.
-                $t->dropIndex($indexName);
-            });
+            // Skipped dropIndex
         } catch (\Throwable $e) {
             // Ignore: index doesn't exist or cannot be dropped in current state.
         }

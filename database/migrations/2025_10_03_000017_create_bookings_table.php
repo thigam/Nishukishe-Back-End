@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
-            $table->uuid('reference')->unique();
+            $table->string('reference')->unique();
             $table->foreignId('bookable_id')->constrained('bookables')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users');
             $table->string('customer_name');
