@@ -18,11 +18,10 @@ class RoutesTableSeeder extends Seeder
         $raw       = File::get($jsonPath);
         $routesRaw = json_decode($raw, true);
 
-        $inserts = array_map(function ($r) {
-            // split the composite id "60101007C11_MT0014"
+        $uniqueInserts = [];
+        foreach ($routesRaw as $r) {
             [$routeId, $saccoId] = explode('_', $r['id'], 2);
 
-            // pull the "{5}" out of the description
             $parts = explode(': ', $r['name'], 2);
             $desc  = $parts[1] ?? $r['name'];
             if (preg_match('/\{(\d+)\}\s*$/', $desc, $m)) {
@@ -31,25 +30,23 @@ class RoutesTableSeeder extends Seeder
                 $routeNumber = '';
             }
 
-            // strip the "{5}" and split "Start – End"
             $descNoNum = preg_replace('/\s*\{\d+\}\s*$/', '', $desc);
             [$start, $end] = array_map('trim', explode(' - ', $descNoNum, 2) + [null, null]);
 
-            return [
+            $uniqueInserts[$routeId] = [
                 'route_id'         => $routeId,
                 'route_number'     => $routeNumber,
                 'route_start_stop' => $start ?? '',
                 'route_end_stop'   => $end   ?? '',
             ];
-        }, $routesRaw);
+        }
 
         DB::table('routes')->upsert(
-            $inserts,
-            ['route_id'],                          // unique key
-            ['route_number','route_start_stop','route_end_stop']  // cols to update
+            array_values($uniqueInserts),
+            ['route_id'],
+            ['route_number','route_start_stop','route_end_stop']
         );
 
-        $this->command->info("Upserted " . count($inserts) . " routes into `routes` table.");
+        $this->command->info("Upserted " . count($uniqueInserts) . " routes into `routes` table.");
     }
 }
-
