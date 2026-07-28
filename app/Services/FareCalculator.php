@@ -26,7 +26,8 @@ class FareCalculator
         ?float $storedPeakFare = null,
         ?float $storedOffPeakFare = null,
         bool $boardingInCbd = false,
-        bool $alightingInCbd = false
+        bool $alightingInCbd = false,
+        bool $isFirstStop = false
     ): array {
         $distanceKm = max(0.0, $distanceKm);
 
@@ -42,8 +43,8 @@ class FareCalculator
             ];
         }
 
-        // Scenario 2: Calculate linear fare
-        $distanceRatio = $distanceKm / $totalDistanceKm;
+        // Scenario 2: Calculate linear fare (If boarding at first stop, 100% fare applies)
+        $distanceRatio = $isFirstStop ? 1.0 : ($distanceKm / $totalDistanceKm);
         $requiresManual = ($distanceKm > self::ABSOLUTE_MANUAL_DISTANCE_KM || $distanceRatio > 1.0);
 
         // Cap ratio at 100% of route

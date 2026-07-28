@@ -56,6 +56,8 @@ Route::post('activity/discover/page-view', [ActivityLogPageViewController::class
 
 Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth')->group(function () {
     Route::controller(AuthController::class)->group(function () {
+        Route::post('/login', 'login')->name('api.auth.login');
+        Route::post('/register', 'register')->name('api.auth.register');
         Route::get('/google/redirect', 'redirectToGoogle')->name('auth.google.redirect');
         Route::get('/google/callback', 'handleGoogleCallback')->name('auth.google.callback');
 

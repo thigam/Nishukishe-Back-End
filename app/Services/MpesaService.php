@@ -20,13 +20,13 @@ class MpesaService
 
     public function __construct()
     {
-        $this->base = config('mpesa.base_url');
-        $this->key = config('mpesa.consumer_key');
-        $this->secret = config('mpesa.consumer_secret');
-        $this->shortcode = config('mpesa.shortcode');
-        $this->passkey = config('mpesa.passkey');
-        $this->callback = config('mpesa.callback_url');
-        $this->baseUrl = config('mpesa.base_url');
+        $this->base = config('mpesa.base_url') ?? '';
+        $this->key = config('mpesa.consumer_key') ?? '';
+        $this->secret = config('mpesa.consumer_secret') ?? '';
+        $this->shortcode = config('mpesa.shortcode') ?? '';
+        $this->passkey = config('mpesa.passkey') ?? '';
+        $this->callback = config('mpesa.callback_url') ?? '';
+        $this->baseUrl = config('mpesa.base_url') ?? '';
     }
 
     public function accessToken(): string

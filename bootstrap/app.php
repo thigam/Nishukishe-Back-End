@@ -18,6 +18,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('notifications:send-onboarding-tips')->cron('*/25 * * * *');
     })
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->validateCsrfTokens(except: [
+            'auth/*',
+            'auth/login',
+            'auth/register',
+            'api/auth/*',
+            'receive-email/*',
+        ]);
+
         $middleware->trustProxies(at: '*');
 
         $middleware->prepend(\App\Http\Middleware\TrustCloudflareHeaders::class);

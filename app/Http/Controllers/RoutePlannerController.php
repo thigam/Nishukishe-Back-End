@@ -477,6 +477,28 @@ class RoutePlannerController extends Controller
         \Log::info("Traffic Enrichment completed in " . round((microtime(true) - $tTraffic) * 1000, 2) . " ms");
         $tDiversify = microtime(true);
 
+        // Include Walk-Only option for short distances (<= 2.5 km)
+        if ($odKm <= 2.5) {
+            $walkMins = (int) ceil(($odKm * 1000.0) / 80.0);
+            $walkOption = [
+                'legs' => [
+                    [
+                        'mode' => 'walk',
+                        'minutes' => max(1, $walkMins),
+                        'distance_meters' => round($odKm * 1000.0),
+                        'description' => 'Walk directly to destination'
+                    ]
+                ],
+                'summary' => [
+                    'total_duration_minutes' => max(1, $walkMins),
+                    'total_fare' => 0,
+                    'is_direct_walk' => true
+                ],
+                'is_walk_only' => true
+            ];
+            array_unshift($finalResults, $walkOption);
+        }
+
         // --- NEW: Diversify Results ---
         \Log::info("DEBUG: Calling diversifyResults now...");
         $preferredSaccos = $request->input('preferred_saccos', []);
@@ -784,6 +806,7 @@ class RoutePlannerController extends Controller
 
         $routeStopIds = $this->getRouteStops($route->sacco_route_id) ?: ($route->stop_ids ?? []);
         $totalRouteDistanceKm = $this->routeDistanceKm($routeStopIds);
+        $isFirstStop = !empty($routeStopIds) && (string) $routeStopIds[0] === (string) $fromDir;
 
         $fareBreakdown = $this->fareCalculator->calculate(
             $distanceKm,
@@ -793,7 +816,8 @@ class RoutePlannerController extends Controller
             $route->peak_fare,
             $route->off_peak_fare,
             $this->isCBDStopOnTheFly($fromDir),
-            $this->isCBDStopOnTheFly($toDir)
+            $this->isCBDStopOnTheFly($toDir),
+            $isFirstStop
         );
 
         if (!$trip && $departAfter) {
