@@ -26,7 +26,7 @@ class CommentService
         $normalized = strtolower($type);
 
         return match ($normalized) {
-            'sacco', 'saccos' => Sacco::where('sacco_id', $identifier)->firstOrFail(),
+            'sacco', 'saccos' => Sacco::resolveByIdOrSlug($identifier) ?? throw (new ModelNotFoundException())->setModel(Sacco::class, [$identifier]),
             'operator', 'operators' => TembeaOperatorProfile::where('slug', $identifier)
                 ->orWhere('id', $identifier)
                 ->firstOrFail(),
