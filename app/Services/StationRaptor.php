@@ -180,7 +180,7 @@ class StationRaptor
         return array_slice($validPaths, 0, $limit);
     }
 
-    private function reconstructPathsRecursive($currStation, $round, $rounds)
+    private function reconstructPathsRecursive($currStation, $round, $rounds, array $visited = [], int $maxPaths = 100)
     {
         if ($round === 0) {
             return [[]];
@@ -190,13 +190,24 @@ class StationRaptor
             return [];
         }
 
+        if (in_array($currStation, $visited, true)) {
+            return [];
+        }
+        $visited[] = $currStation;
+
         $paths = [];
         foreach ($rounds[$round][$currStation] as $arrival) {
+            if (count($paths) >= $maxPaths) {
+                break;
+            }
             $from = $arrival['from'];
             $route = $arrival['route'];
 
-            $subPaths = $this->reconstructPathsRecursive($from, $round - 1, $rounds);
+            $subPaths = $this->reconstructPathsRecursive($from, $round - 1, $rounds, $visited, $maxPaths);
             foreach ($subPaths as $subPath) {
+                if (count($paths) >= $maxPaths) {
+                    break;
+                }
                 $newPath = $subPath;
                 $newPath[] = [
                     'from_station' => $from,
