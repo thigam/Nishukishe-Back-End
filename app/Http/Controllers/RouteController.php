@@ -26,6 +26,7 @@ class RouteController extends Controller
             'route_end_stop' => 'required|string',
         ]);
 
+        $data['route_number'] = $data['route_number'] ?? '';
         $data['route_id'] = $data['route_id'] ?? Str::uuid()->toString();
 
         $route = TransportRoute::create($data);
