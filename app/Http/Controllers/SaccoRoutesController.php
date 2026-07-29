@@ -654,7 +654,7 @@ class SaccoRoutesController extends Controller
 
         $validator = Validator::make($request->all(), [
             'sacco_id' => 'required|string',
-            'route_number' => 'required|string',
+            'route_number' => 'nullable|string',
             'route_id' => 'required|string', // base id (kept from your payload)
             'route_start_stop' => 'required|string',
             'route_end_stop' => 'required|string',

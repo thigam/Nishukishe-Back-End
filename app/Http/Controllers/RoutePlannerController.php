@@ -542,6 +542,8 @@ class RoutePlannerController extends Controller
             return $costA <=> $costB;
         });
 
+        $finalResults = array_slice($finalResults, 0, 12);
+
         \Log::info("Diversify and Sorting completed in " . round((microtime(true) - $tDiversify) * 1000, 2) . " ms. Total query time: " . round((microtime(true) - $perfStart) * 1000, 2) . " ms");
         return response()->json(['single_leg' => [], 'multi_leg' => $finalResults]);
 

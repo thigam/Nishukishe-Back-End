@@ -94,7 +94,7 @@ class StationRaptor
         Log::info("StationRaptor: Data Loaded (Cached) in " . round($end - $start, 4) . "s");
     }
 
-    public function search($originStopId, $destStopId, $limit = 24)
+    public function search($originStopId, $destStopId, $limit = 12)
     {
         $originStation = $this->stopToStation[$originStopId] ?? null;
         $destStation = $this->stopToStation[$destStopId] ?? null;
