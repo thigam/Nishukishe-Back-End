@@ -21,7 +21,7 @@ class RouteController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'route_number' => 'required|string|unique:routes,route_number',
+            'route_number' => 'nullable|string',
             'route_start_stop' => 'required|string',
             'route_end_stop' => 'required|string',
         ]);
