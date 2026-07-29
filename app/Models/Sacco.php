@@ -123,8 +123,8 @@ class Sacco extends Model
 
         return self::where('sacco_id', $normalized)
             ->orWhere('share_slug', $normalized)
-            ->orWhere('sacco_name', 'ILIKE', $normalized)
-            ->orWhere('sacco_name', 'ILIKE', $spaceName)
+            ->orWhere('sacco_name', 'LIKE', $normalized)
+            ->orWhere('sacco_name', 'LIKE', $spaceName)
             ->first();
     }
 }
