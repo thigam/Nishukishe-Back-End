@@ -32,7 +32,7 @@ Route::prefix('routes')->controller(SaccoRoutesController::class)->middleware([C
     });
 });
 
-Route::prefix('sacco')->controller(SaccoController::class)->middleware([CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class, 'throttle:public-sacco-api'])->group(function () {
+Route::prefix('sacco')->controller(SaccoController::class)->middleware([CorsMiddleware::class, LogUserActivity::class, 'throttle:public-sacco-api'])->group(function () {
     Route::get('/', 'index')->name('sacco.index');
     Route::get('/{id}', 'findById')->name('sacco.findById');
     Route::get('/name/{name}', 'findByName')->name('sacco.findByName');

@@ -190,4 +190,33 @@ class SaccoStageController extends Controller
 
         return null;
     }
+
+    public function search(Request $request): JsonResponse
+    {
+        $query = trim($request->query("q", ""));
+        if (!$query || strlen($query) < 2) {
+            return response()->json([]);
+        }
+
+        $queryLower = strtolower($query);
+
+        // Query only sacco_stages with eager-loaded sacco relation
+        $saccoStages = SaccoStage::with("sacco:sacco_id,sacco_name")
+            ->whereRaw("LOWER(name) LIKE ?", ["%" . $queryLower . "%"])
+            ->limit(10)
+            ->get()
+            ->map(function ($st) {
+                return [
+                    "id" => $st->id,
+                    "sacco_id" => $st->sacco_id,
+                    "sacco_name" => $st->sacco ? $st->sacco->sacco_name : "Sacco",
+                    "name" => $st->name,
+                    "lat" => (float)$st->latitude,
+                    "lng" => (float)$st->longitude,
+                    "description" => $st->description,
+                ];
+            });
+
+        return response()->json($saccoStages);
+    }
 }

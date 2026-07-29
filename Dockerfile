@@ -58,7 +58,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 COPY composer.json composer.lock /var/www/
 
 # Install dependencies (ignoring platform reqs for FFI during build just in case)
-RUN composer install --no-interaction --optimize-autoloader --no-dev --no-scripts --ignore-platform-req=ext-ffi
+RUN composer install --no-interaction --optimize-autoloader --no-dev --no-scripts --ignore-platform-req=ext-ffi --prefer-source
 
 # 6. Copy Application Code
 COPY . /var/www/

@@ -37,25 +37,61 @@ class TransitFixSeeder extends Seeder
             ]
         );
 
-        // 4. Kampala Mega Station (Namayiba + Qualicel + Link)
+        // 4. Kampala Mega Station (Namayiba + Qualicel + Link + Gateway)
         CustomStationPolygon::updateOrCreate(
             ['name' => 'Kampala Mega Station'],
             [
-                'polygon' => [[0.310, 32.570], [0.325, 32.570], [0.325, 32.595], [0.310, 32.595], [0.310, 32.570]],
+                'polygon' => [[0.310, 32.560], [0.325, 32.560], [0.325, 32.595], [0.310, 32.595], [0.310, 32.560]],
                 'station_id' => 'st:custom:kampala_mega_station'
             ]
         );
 
-        // 5. Dar es Salaam Hub Station (Kibaha + Ubungo + Magufuli)
+        // 5. Dar es Salaam Magufuli Terminal
         CustomStationPolygon::updateOrCreate(
-            ['name' => 'Dar es Salaam Hub Station'],
+            ['name' => 'Dar es Salaam Magufuli Terminal'],
             [
-                'polygon' => [[-6.750, 38.900], [-6.850, 38.900], [-6.850, 39.300], [-6.750, 39.300], [-6.750, 38.900]],
-                'station_id' => 'st:custom:dar_mega_station'
+                'polygon' => [[-6.782, 39.104], [-6.782, 39.112], [-6.790, 39.112], [-6.790, 39.104], [-6.782, 39.104]],
+                'station_id' => 'st:custom:dar_magufuli'
             ]
         );
 
-        // 6. Mombasa Mega Station (CBD + Mwembe Tayari)
+        // 6. Dar es Salaam Ubungo Terminal
+        CustomStationPolygon::updateOrCreate(
+            ['name' => 'Dar es Salaam Ubungo Terminal'],
+            [
+                'polygon' => [[-6.790, 39.205], [-6.790, 39.215], [-6.796, 39.215], [-6.796, 39.205], [-6.790, 39.205]],
+                'station_id' => 'st:custom:dar_ubungo'
+            ]
+        );
+
+        // 7. Dar es Salaam Morocco Terminal
+        CustomStationPolygon::updateOrCreate(
+            ['name' => 'Dar es Salaam Morocco Terminal'],
+            [
+                'polygon' => [[-6.775, 39.260], [-6.775, 39.267], [-6.782, 39.267], [-6.782, 39.260], [-6.775, 39.260]],
+                'station_id' => 'st:custom:dar_morocco'
+            ]
+        );
+
+        // 8. Dar es Salaam Kivukoni Terminal
+        CustomStationPolygon::updateOrCreate(
+            ['name' => 'Dar es Salaam Kivukoni Terminal'],
+            [
+                'polygon' => [[-6.816, 39.296], [-6.816, 39.302], [-6.822, 39.302], [-6.822, 39.296], [-6.816, 39.296]],
+                'station_id' => 'st:custom:dar_kivukoni'
+            ]
+        );
+
+        // 9. Dar es Salaam Posta / CBD
+        CustomStationPolygon::updateOrCreate(
+            ['name' => 'Dar es Salaam Posta / CBD'],
+            [
+                'polygon' => [[-6.812, 39.284], [-6.812, 39.294], [-6.820, 39.294], [-6.820, 39.284], [-6.812, 39.284]],
+                'station_id' => 'st:custom:dar_posta'
+            ]
+        );
+
+        // 10. Mombasa Mega Station (CBD + Mwembe Tayari)
         CustomStationPolygon::updateOrCreate(
             ['name' => 'Mombasa Mega Station'],
             [

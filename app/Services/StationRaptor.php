@@ -94,7 +94,7 @@ class StationRaptor
         Log::info("StationRaptor: Data Loaded (Cached) in " . round($end - $start, 4) . "s");
     }
 
-    public function search($originStopId, $destStopId, $limit = 24)
+    public function search($originStopId, $destStopId, $limit = 12)
     {
         $originStation = $this->stopToStation[$originStopId] ?? null;
         $destStation = $this->stopToStation[$destStopId] ?? null;
@@ -112,7 +112,7 @@ class StationRaptor
 
         $validPaths = [];
 
-        for ($k = 1; $k <= 2; $k++) {
+        for ($k = 1; $k <= 3; $k++) {
             $prevRound = $rounds[$k - 1];
             $currentRound = [];
 
@@ -155,13 +155,20 @@ class StationRaptor
             $rounds[$k] = $currentRound;
 
             if (isset($currentRound[$destStation])) {
-                foreach ($currentRound[$destStation] as $arrival) {
-                    // Reconstruct
-                    $path = $this->reconstructPathMulti($destStation, $arrival, $k, $rounds);
+                $paths = $this->reconstructPathsRecursive($destStation, $k, $rounds);
+                foreach ($paths as $path) {
                     $validPaths[] = $path;
                 }
             }
         }
+
+        // Deduplicate paths
+        $uniquePaths = [];
+        foreach ($validPaths as $path) {
+            $sig = json_encode($path);
+            $uniquePaths[$sig] = $path;
+        }
+        $validPaths = array_values($uniquePaths);
 
         // Sort paths by length (fewer intermediate stations = better?)
         // Since we iterate rounds 1..2, we already prioritize fewer transfers.
@@ -173,35 +180,44 @@ class StationRaptor
         return array_slice($validPaths, 0, $limit);
     }
 
-    private function reconstructPathMulti($destStation, $lastArrival, $round, $rounds)
+    private function reconstructPathsRecursive($currStation, $round, $rounds, array $visited = [], int $maxPaths = 100)
     {
-        $path = [];
-        $path[] = [
-            'from_station' => $lastArrival['from'],
-            'to_station' => $destStation,
-            'route_id' => $lastArrival['route']
-        ];
-
-        $curr = $lastArrival['from'];
-
-        // Backtrack
-        for ($r = $round - 1; $r > 0; $r--) {
-            // Find how we got to $curr in round $r
-            if (!isset($rounds[$r][$curr]))
-                break; // Should not happen
-
-            // Heuristic: Pick the arrival that minimizes distance? 
-            // For now, just pick the first one.
-            $arrival = $rounds[$r][$curr][0];
-            $path[] = [
-                'from_station' => $arrival['from'],
-                'to_station' => $curr,
-                'route_id' => $arrival['route']
-            ];
-            $curr = $arrival['from'];
+        if ($round === 0) {
+            return [[]];
         }
 
-        return array_reverse($path);
+        if (!isset($rounds[$round][$currStation])) {
+            return [];
+        }
+
+        if (in_array($currStation, $visited, true)) {
+            return [];
+        }
+        $visited[] = $currStation;
+
+        $paths = [];
+        foreach ($rounds[$round][$currStation] as $arrival) {
+            if (count($paths) >= $maxPaths) {
+                break;
+            }
+            $from = $arrival['from'];
+            $route = $arrival['route'];
+
+            $subPaths = $this->reconstructPathsRecursive($from, $round - 1, $rounds, $visited, $maxPaths);
+            foreach ($subPaths as $subPath) {
+                if (count($paths) >= $maxPaths) {
+                    break;
+                }
+                $newPath = $subPath;
+                $newPath[] = [
+                    'from_station' => $from,
+                    'to_station' => $currStation,
+                    'route_id' => $route
+                ];
+                $paths[] = $newPath;
+            }
+        }
+        return $paths;
     }
 
     public function expandPath($stationPath, $originStopId, $destStopId)

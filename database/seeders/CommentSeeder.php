@@ -39,7 +39,6 @@ class CommentSeeder extends Seeder
                 'sacco_location' => 'Nairobi',
                 'sacco_phone' => '0700000001',
                 'sacco_email' => 'sacco@nishukishe.com',
-                'sacco_routes' => [],
                 'is_approved' => true,
             ]
         );

@@ -118,8 +118,13 @@ class Sacco extends Model
      */
     public static function resolveByIdOrSlug(string $identifier): ?self
     {
-        return self::where('sacco_id', $identifier)
-            ->orWhere('share_slug', $identifier)
+        $normalized = trim(urldecode($identifier));
+        $spaceName = str_replace('-', ' ', $normalized);
+
+        return self::where('sacco_id', $normalized)
+            ->orWhere('share_slug', $normalized)
+            ->orWhere('sacco_name', 'LIKE', $normalized)
+            ->orWhere('sacco_name', 'LIKE', $spaceName)
             ->first();
     }
 }

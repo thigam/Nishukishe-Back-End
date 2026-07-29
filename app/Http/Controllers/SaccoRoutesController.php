@@ -654,7 +654,7 @@ class SaccoRoutesController extends Controller
 
         $validator = Validator::make($request->all(), [
             'sacco_id' => 'required|string',
-            'route_number' => 'required|string',
+            'route_number' => 'nullable|string',
             'route_id' => 'required|string', // base id (kept from your payload)
             'route_start_stop' => 'required|string',
             'route_end_stop' => 'required|string',
@@ -692,8 +692,8 @@ class SaccoRoutesController extends Controller
             'route_end_stop' => $request->route_end_stop,
             'stop_ids' => $request->stop_ids,
             'coordinates' => $request->input('coordinates', []),
-            'peak_fare' => $request->input('peak_fare', 100),
-            'off_peak_fare' => $request->input('off_peak_fare', 100),
+            'peak_fare' => $request->input('peak_fare'),
+            'off_peak_fare' => $request->input('off_peak_fare'),
             'currency' => strtoupper($request->input('currency', 'KES')),
             'county_id' => $request->input('county_id', null),
             'mode' => $request->input('mode', 'bus'),

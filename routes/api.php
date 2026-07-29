@@ -56,6 +56,8 @@ Route::post('activity/discover/page-view', [ActivityLogPageViewController::class
 
 Route::middleware([CorsMiddleware::class, LogUserActivity::class])->prefix('auth')->group(function () {
     Route::controller(AuthController::class)->group(function () {
+        Route::post('/login', 'login')->name('api.auth.login');
+        Route::post('/register', 'register')->name('api.auth.register');
         Route::get('/google/redirect', 'redirectToGoogle')->name('auth.google.redirect');
         Route::get('/google/callback', 'handleGoogleCallback')->name('auth.google.callback');
 
@@ -452,6 +454,7 @@ Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function 
 
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);
+Route::get('stages/search', [\App\Http\Controllers\SaccoStageController::class, 'search']);
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
 Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
 Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
