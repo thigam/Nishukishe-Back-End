@@ -16,19 +16,23 @@ class CorsMiddleware
         \Log::info('CORS Middleware - Method: ' . $request->method() . ', Origin: ' . $origin);
         
         // Define allowed origins explicitly
-	$allowedOrigins = [
-	    'https://frontend.nishy.test',
-        'http://nishukishe.com',
-        'https://nishukishe.com',
-        'https://staging.nishukishe.com',
-        'https://backend.moskwito.com',
-        'https://front.moskwito.com',
-        'https://images.nishukishe.com',
-        'http://localhost',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'capacitor://localhost',
+        $allowedOrigins = [
+            'https://frontend.nishy.test',
+            'http://nishukishe.com',
+            'https://nishukishe.com',
+            'https://staging.nishukishe.com',
+            'https://backend.moskwito.com',
+            'https://front.moskwito.com',
+            'https://images.nishukishe.com',
+            'capacitor://localhost',
         ];
+
+        if (app()->environment('local')) {
+            $allowedOrigins[] = 'http://localhost';
+            $allowedOrigins[] = 'http://localhost:3000';
+            $allowedOrigins[] = 'http://127.0.0.1:3000';
+        }
+        
         
         // Check if the origin is allowed
         $allowOrigin = in_array($origin, $allowedOrigins) ? $origin : null;
