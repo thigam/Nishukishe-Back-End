@@ -479,14 +479,23 @@ class RoutePlannerController extends Controller
 
         // Include Walk-Only option for short distances (<= 2.5 km)
         if ($odKm <= 2.5) {
-            $walkMins = (int) ceil(($odKm * 1000.0) / 80.0);
+            $walkResult = null;
+            if ($this->walkRouter) {
+                $walkResult = $this->walkRouter->route($olat, $olng, $dlat, $dlng);
+            }
+            
+            $walkMins = $walkResult ? (int) ceil($walkResult['duration_s'] / 60.0) : (int) ceil(($odKm * 1000.0) / 80.0);
+            $distanceM = $walkResult ? $walkResult['distance_m'] : round($odKm * 1000.0);
+            $coords = $walkResult ? $walkResult['coords'] : [[$olat, $olng], [$dlat, $dlng]];
+
             $walkOption = [
                 'legs' => [
                     [
                         'mode' => 'walk',
                         'minutes' => max(1, $walkMins),
-                        'distance_meters' => round($odKm * 1000.0),
-                        'description' => 'Walk directly to destination'
+                        'distance_meters' => $distanceM,
+                        'description' => 'Walk directly to destination',
+                        'coordinates' => $coords
                     ]
                 ],
                 'summary' => [
