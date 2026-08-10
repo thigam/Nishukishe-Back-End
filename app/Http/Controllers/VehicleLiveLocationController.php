@@ -33,4 +33,22 @@ class VehicleLiveLocationController extends Controller
 
         return response()->json($vehicles);
     }
+
+    /**
+     * Get real-time next vehicle ETA for a specific stop on a route.
+     */
+    public function eta(Request $request)
+    {
+        $validated = $request->validate([
+            'sacco_route_id' => 'required|string|exists:sacco_routes,sacco_route_id',
+            'stop_id' => 'required|string',
+        ]);
+
+        $eta = $this->trackingService->getRouteEta(
+            $validated['sacco_route_id'],
+            $validated['stop_id']
+        );
+
+        return response()->json($eta);
+    }
 }

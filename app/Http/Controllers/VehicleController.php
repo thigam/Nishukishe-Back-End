@@ -64,11 +64,14 @@ class VehicleController extends Controller
     public function getSaccoFleet(Request $request)
     {
         $user = $request->user();
-        if (!$user->sacco_id) {
+        $saccoManager = \App\Models\SaccoManager::where('user_id', $user->id)->first();
+        $saccoId = $saccoManager?->sacco_id;
+
+        if (!$saccoId) {
             return response()->json(['message' => 'Sacco ID not found for user'], 403);
         }
 
-        $fleet = $this->trackingService->getFleetForSacco($user->sacco_id);
+        $fleet = $this->trackingService->getFleetForSacco($saccoId);
 
         return response()->json($fleet);
     }
