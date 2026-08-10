@@ -47,6 +47,10 @@ Route::post('multileg-route', [RoutePlannerController::class, 'multilegRoute'])
     ->middleware([CorsMiddleware::class, LogUserActivity::class, 'throttle:multileg-route'])
     ->name('multileg.route');
 
+Route::get('tracking/eta', [VehicleLiveLocationController::class, 'eta'])
+    ->middleware([CorsMiddleware::class])
+    ->name('tracking.eta');
+
 Route::post('activity/directions/page-view', [ActivityLogPageViewController::class, 'storeDirections'])
     ->middleware([CorsMiddleware::class])
     ->name('activity.directions.page-view');
@@ -117,6 +121,8 @@ Route::get('/deploy_logs', function () {
 
 Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class])
     ->group(function () {
+
+        Route::post('/driver-locations', [DriverLocationController::class, 'store']);
 
 
 
