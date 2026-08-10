@@ -57,8 +57,10 @@ class DriverController extends Controller
             ->first();
 
         if ($activeLog) {
-            // End shift
-            $activeLog->update(['ended_at' => now()]);
+            // End all active shifts
+            DriverLog::where('driver_id', $user->id)
+                ->whereNull('ended_at')
+                ->update(['ended_at' => now()]);
             return response()->json(['status' => 'ended', 'log' => $activeLog]);
         } else {
             // Start shift (requires route selection, so this might just return status)
