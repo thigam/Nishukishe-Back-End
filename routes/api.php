@@ -520,5 +520,16 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
     Route::post('/notifications/onboarding/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackOnboardingClick']);
 });
 
+Route::get('test-deploy', function () {
+    return response()->json([
+        'time' => now()->toDateTimeString(),
+        'registered_routes' => collect(Route::getRoutes())->map(function ($route) {
+            return $route->methods()[0] . ' ' . $route->uri();
+        })->filter(function ($uri) {
+            return str_contains($uri, 'drivers/invite') || str_contains($uri, 'sacco-admin');
+        })->values(),
+    ]);
+})->middleware([\App\Http\Middleware\CorsMiddleware::class]);
+
 
 
