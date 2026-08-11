@@ -27,11 +27,22 @@ class DriverLocationController extends Controller
         }
 
         $data = $request->validate([
-            'vehicle_id' => ['required', 'integer'],
+            'vehicle_id' => ['nullable', 'integer'],
             'lat' => ['required', 'numeric'],
             'lng' => ['required', 'numeric'],
             'recorded_at' => ['nullable', 'date'],
         ]);
+
+        if (empty($data['vehicle_id'])) {
+            $vehicle = \App\Models\Vehicle::where('driver_id', $user->id)->first();
+            if (!$vehicle) {
+                return response()->json([
+                    'message' => 'The vehicle id field is required.',
+                    'errors' => ['vehicle_id' => ['No active vehicle assigned to driver.']]
+                ], 422);
+            }
+            $data['vehicle_id'] = $vehicle->id;
+        }
 
         $data['driver_id'] = $user->id;
         $data['recorded_at'] = $data['recorded_at'] ?? now();
