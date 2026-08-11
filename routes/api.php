@@ -123,6 +123,7 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class,
     ->group(function () {
 
         Route::post('/driver-locations', [DriverLocationController::class, 'store']);
+        Route::post('/sacco-admin/drivers/invite', [\App\Http\Controllers\DriverInvitationController::class, 'invite']);
 
 
 
@@ -456,6 +457,12 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
 Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function () {
     Route::get('agent-signup/verify/{token}', [\App\Http\Controllers\AgentInvitationController::class, 'verify']);
     Route::post('agent-signup/{token}', [\App\Http\Controllers\AgentInvitationController::class, 'signup']);
+});
+
+// Driver Signup (Public)
+Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function () {
+    Route::get('driver-signup/verify/{token}', [\App\Http\Controllers\DriverInvitationController::class, 'verify']);
+    Route::post('driver-signup/{token}', [\App\Http\Controllers\DriverInvitationController::class, 'signup']);
 });
 
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
