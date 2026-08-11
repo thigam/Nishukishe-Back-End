@@ -22,6 +22,7 @@ class SaccoRoute extends Model
 
     public function route(): BelongsTo
     {
-        return $this->belongsTo(Route::class);
+        // sacco_routes.route_id -> routes.route_id
+        return $this->belongsTo(Route::class, 'route_id', 'route_id');
     }
 }
