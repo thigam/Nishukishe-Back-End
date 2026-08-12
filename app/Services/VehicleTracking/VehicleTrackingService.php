@@ -137,7 +137,7 @@ class VehicleTrackingService
             return $bestIdx;
         };
 
-        $targetIdx = $findClosestIndex($targetStop->latitude, $targetStop->longitude);
+        $targetIdx = $findClosestIndex($targetStop->stop_lat, $targetStop->stop_long);
         $etas = [];
 
         foreach ($vehicles as $vehicle) {
