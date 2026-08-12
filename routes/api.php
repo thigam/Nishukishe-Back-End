@@ -47,6 +47,10 @@ Route::post('multileg-route', [RoutePlannerController::class, 'multilegRoute'])
     ->middleware([CorsMiddleware::class, LogUserActivity::class, 'throttle:multileg-route'])
     ->name('multileg.route');
 
+Route::get('tracking/eta', [VehicleLiveLocationController::class, 'eta'])
+    ->middleware([CorsMiddleware::class])
+    ->name('tracking.eta');
+
 Route::post('activity/directions/page-view', [ActivityLogPageViewController::class, 'storeDirections'])
     ->middleware([CorsMiddleware::class])
     ->name('activity.directions.page-view');
@@ -117,6 +121,9 @@ Route::get('/deploy_logs', function () {
 
 Route::middleware(['auth:sanctum', CorsMiddleware::class, RoleMiddleware::class, LogUserActivity::class])
     ->group(function () {
+
+        Route::post('/driver-locations', [DriverLocationController::class, 'store']);
+        Route::post('/sacco-admin/drivers/invite', [\App\Http\Controllers\DriverInvitationController::class, 'invite']);
 
 
 
@@ -452,6 +459,12 @@ Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function 
     Route::post('agent-signup/{token}', [\App\Http\Controllers\AgentInvitationController::class, 'signup']);
 });
 
+// Driver Signup (Public)
+Route::middleware([\App\Http\Middleware\CorsMiddleware::class])->group(function () {
+    Route::get('driver-signup/verify/{token}', [\App\Http\Controllers\DriverInvitationController::class, 'verify']);
+    Route::post('driver-signup/{token}', [\App\Http\Controllers\DriverInvitationController::class, 'signup']);
+});
+
 Route::get('discover/search', [\App\Http\Controllers\DiscoverController::class, 'search']);
 Route::get('sacco/search', [\App\Http\Controllers\SaccoController::class, 'search']);
 Route::get('stages/search', [\App\Http\Controllers\SaccoStageController::class, 'search']);
@@ -506,6 +519,4 @@ Route::prefix('mobile')->middleware([CorsMiddleware::class])->group(function () 
     Route::post('/notifications/automated/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackAutomatedClick']);
     Route::post('/notifications/onboarding/{id}/click', [\App\Http\Controllers\NotificationStatsController::class, 'trackOnboardingClick']);
 });
-
-
 

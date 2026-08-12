@@ -39,10 +39,10 @@ class DriverController extends Controller
         $vehicle = Vehicle::where('driver_id', $user->id)->first();
 
         $log = DriverLog::create([
-            'driver_id' => $user->id,
-            'vehicle_id' => $vehicle?->id,
+            'driver_id'      => $user->id,
+            'vehicle_id'     => $vehicle?->id,
             'sacco_route_id' => $validated['sacco_route_id'],
-            'started_at' => now(),
+            'started_at'     => now(),
         ]);
 
         return response()->json($log->load(['saccoRoute.route', 'vehicle']));
@@ -57,11 +57,12 @@ class DriverController extends Controller
             ->first();
 
         if ($activeLog) {
-            // End shift
-            $activeLog->update(['ended_at' => now()]);
+            // End all active shifts
+            DriverLog::where('driver_id', $user->id)
+                ->whereNull('ended_at')
+                ->update(['ended_at' => now()]);
             return response()->json(['status' => 'ended', 'log' => $activeLog]);
         } else {
-            // Start shift (requires route selection, so this might just return status)
             return response()->json(['status' => 'inactive', 'message' => 'Select a route to start shift']);
         }
     }
@@ -79,6 +80,30 @@ class DriverController extends Controller
             ->with('route')
             ->get();
 
-        return response()->json($routes);
+        // Transform: detect direction from sacco_route_id suffix.
+        // Convention: _001 = outbound (A→B), _002 = return direction (B→A).
+        // Both share the same routes record, so we swap start/end labels for _002
+        // so drivers can tell the two directions apart.
+        $mapped = $routes->map(function ($saccoRoute) {
+            $route = $saccoRoute->route;
+            if (!$route) return null;
+
+            // Extract direction suffix (last segment after final underscore)
+            $parts = explode('_', $saccoRoute->sacco_route_id);
+            $directionSuffix = end($parts); // "001" or "002"
+            $isReturn = ($directionSuffix === '002');
+
+            return [
+                'sacco_route_id' => $saccoRoute->sacco_route_id,
+                'route' => [
+                    'route_id'         => $route->route_id,
+                    'route_number'     => $route->route_number,
+                    'route_start_stop' => $isReturn ? $route->route_end_stop   : $route->route_start_stop,
+                    'route_end_stop'   => $isReturn ? $route->route_start_stop : $route->route_end_stop,
+                ],
+            ];
+        })->filter()->values();
+
+        return response()->json($mapped);
     }
 }

@@ -18,9 +18,6 @@ RUN apt-get update && apt-get install -y \
 # 2. Install PHP extensions (Including FFI and ZIP)
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd ffi zip
 
-# 2. Install PHP extensions (Including FFI and ZIP)
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd ffi zip
-
 # Install Redis PHP extension
 RUN pecl install redis && docker-php-ext-enable redis
 
