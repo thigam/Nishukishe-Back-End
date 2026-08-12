@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DeviceToken;
 use App\Models\NotificationCampaign;
 use App\Services\FcmService;
+use App\Jobs\SendNotificationCampaign;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,21 @@ class NotificationCampaignController extends Controller
      */
     public function store(Request $request, FcmService $fcmService)
     {
+        // Verify FCM config is valid before attempting anything else
+        $serviceAccountPath = config('services.fcm.service_account_path');
+        if (!$serviceAccountPath || !file_exists($serviceAccountPath)) {
+            return response()->json([
+                'message' => 'FCM Configuration Error: Service account JSON not found on server.'
+            ], 400);
+        }
+
+        $json = json_decode(@file_get_contents($serviceAccountPath), true);
+        if (!$json || !isset($json['private_key'])) {
+            return response()->json([
+                'message' => 'FCM Configuration Error: Service account JSON is invalid or missing private_key.'
+            ], 400);
+        }
+
         $validated = $request->validate([
             'title'        => 'required|string|max:255',
             'message'      => 'required|string',
@@ -77,25 +93,7 @@ class NotificationCampaignController extends Controller
         }
 
         if ($recipientsCount > 0) {
-            $result = $fcmService->sendNotification(
-                $tokens,
-                $validated['title'],
-                $validated['message'],
-                $validated['link'] ?: '/',
-                $campaign->id
-            );
-            
-            // If the service returned a failure specifically because of configuration
-            if (isset($result['error']) && $result['error'] === 'config_error') {
-                $campaign->delete(); // Remove the "ghost" campaign
-                return response()->json([
-                    'message' => 'FCM Configuration Error: Service account JSON not found on server.'
-                ], 400);
-            }
-
-            $campaign->update([
-                'status' => 'sent',
-            ]);
+            SendNotificationCampaign::dispatch($campaign, $tokens);
         } else {
             $campaign->update(['status' => 'failed']);
         }
