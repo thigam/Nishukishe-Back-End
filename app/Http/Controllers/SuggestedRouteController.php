@@ -26,10 +26,9 @@ class SuggestedRouteController extends Controller
             ->limit(200)
             ->get();
 
-        // Top 200 saccos (could be by route count too)
+        // All saccos
         $saccos = Sacco::select('sacco_id', 'sacco_name')
             ->orderBy('sacco_name', 'asc')
-            ->limit(200)
             ->get();
 
         return response()->json([

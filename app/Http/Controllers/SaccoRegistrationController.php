@@ -15,7 +15,7 @@ class SaccoRegistrationController extends Controller
     {
         $validated = $request->validate([
             'sacco_name' => 'required|string|max:255',
-            'registration_number' => 'nullable|string|max:255',
+            'registration_number' => 'required|string|max:255',
             'website_link' => 'nullable|url|max:255',
             'social_media_link' => 'nullable|string|max:255',
             'official_contacts' => 'nullable|array',
