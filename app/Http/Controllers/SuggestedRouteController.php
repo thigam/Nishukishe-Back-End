@@ -26,10 +26,9 @@ class SuggestedRouteController extends Controller
             ->limit(200)
             ->get();
 
-        // Top 200 saccos (could be by route count too)
+        // All saccos
         $saccos = Sacco::select('sacco_id', 'sacco_name')
             ->orderBy('sacco_name', 'asc')
-            ->limit(200)
             ->get();
 
         return response()->json([
@@ -44,17 +43,19 @@ class SuggestedRouteController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'email' => 'nullable|email|max:255',
             'start_stop_id' => 'nullable|exists:stops,stop_id',
             'end_stop_id' => 'nullable|exists:stops,stop_id',
-            'sacco_id' => 'nullable|exists:saccos,sacco_id',
+            'sacco_id' => 'required_without:sacco_manual|nullable|exists:saccos,sacco_id',
             'start_stop_manual' => 'nullable|string|max:255',
             'end_stop_manual' => 'nullable|string|max:255',
-            'sacco_manual' => 'nullable|string|max:255',
+            'sacco_manual' => 'required_without:sacco_id|nullable|string|max:255',
             'details' => 'nullable|string',
         ]);
 
         $suggestion = SuggestedRoute::create([
             'user_id' => auth()->id(),
+            'email' => $validated['email'] ?? null,
             'start_stop_id' => $validated['start_stop_id'] ?? null,
             'end_stop_id' => $validated['end_stop_id'] ?? null,
             'sacco_id' => $validated['sacco_id'] ?? null,

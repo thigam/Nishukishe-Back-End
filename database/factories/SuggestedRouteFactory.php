@@ -18,6 +18,7 @@ class SuggestedRouteFactory extends Factory
     {
         return [
             'user_id' => \App\Models\User::factory(),
+            'sacco_manual' => 'Super Sacco',
             'details' => $this->faker->paragraph,
             'status' => 'pending',
         ];

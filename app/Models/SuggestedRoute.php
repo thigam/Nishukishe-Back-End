@@ -12,6 +12,7 @@ class SuggestedRoute extends Model
 
     protected $fillable = [
         'user_id',
+        'email',
         'start_stop_id',
         'end_stop_id',
         'sacco_id',

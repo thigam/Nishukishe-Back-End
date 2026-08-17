@@ -14,6 +14,7 @@ class ReportedWrongInfoController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'email' => 'nullable|email|max:255',
             'search_start' => 'nullable|string|max:255',
             'search_end' => 'nullable|string|max:255',
             'legs' => 'nullable|array',
@@ -24,6 +25,7 @@ class ReportedWrongInfoController extends Controller
 
         $report = ReportedWrongInfo::create([
             'user_id' => $request->user()?->id,
+            'email' => $validated['email'] ?? null,
             'search_start' => $validated['search_start'] ?? null,
             'search_end' => $validated['search_end'] ?? null,
             'legs' => $validated['legs'] ?? null,
@@ -51,6 +53,14 @@ class ReportedWrongInfoController extends Controller
 
         if ($status && $status !== 'all') {
             $query->where('status', $status);
+        }
+
+        if ($request->query('no_paginate') === 'true') {
+            $reportsData = $query->get();
+            return response()->json([
+                'success' => true,
+                'reports' => ['data' => $reportsData],
+            ]);
         }
 
         $reports = $query->paginate(20);
