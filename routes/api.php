@@ -446,6 +446,18 @@ Route::middleware(['auth:sanctum', CorsMiddleware::class])->group(function () {
         Route::post('/{id}/resolve', [\App\Http\Controllers\ReportedWrongInfoController::class, 'resolve']);
     });
 
+    // Feedback (Admin)
+    Route::prefix('admin/feedback')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_feedback')->group(function () {
+        Route::get('/', [\App\Http\Controllers\UserFeedbackController::class, 'index']);
+        Route::post('/{id}/resolve', [\App\Http\Controllers\UserFeedbackController::class, 'resolve']);
+    });
+
+    // Sacco Registrations (Admin)
+    Route::prefix('admin/sacco-registrations')->middleware(\App\Http\Middleware\CheckServiceAccess::class . ':manage_sacco_registrations')->group(function () {
+        Route::get('/', [\App\Http\Controllers\SaccoRegistrationController::class, 'index']);
+        Route::post('/{id}/status', [\App\Http\Controllers\SaccoRegistrationController::class, 'updateStatus']);
+    });
+
     // Mobile Analytics
     Route::get('admin/mobile-analytics', [\App\Http\Controllers\MobileAnalyticsController::class, 'index'])
         ->middleware(\App\Http\Middleware\RoleMiddleware::class . ':super_admin');
@@ -471,6 +483,8 @@ Route::get('stages/search', [\App\Http\Controllers\SaccoStageController::class, 
 Route::get('suggested-routes/options', [\App\Http\Controllers\SuggestedRouteController::class, 'options']);
 Route::post('suggested-routes', [\App\Http\Controllers\SuggestedRouteController::class, 'store']);
 Route::post('reported-wrong-info', [\App\Http\Controllers\ReportedWrongInfoController::class, 'store']);
+Route::post('feedback', [\App\Http\Controllers\UserFeedbackController::class, 'store']);
+Route::post('sacco-registrations', [\App\Http\Controllers\SaccoRegistrationController::class, 'store']);
 Route::get('roads/suggest', [\App\Http\Controllers\RoadController::class, 'suggest'])->middleware([CorsMiddleware::class]);
 
 // Commuter Occurrences

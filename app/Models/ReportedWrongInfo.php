@@ -14,6 +14,7 @@ class ReportedWrongInfo extends Model
 
     protected $fillable = [
         'user_id',
+        'email',
         'search_start',
         'search_end',
         'legs',
