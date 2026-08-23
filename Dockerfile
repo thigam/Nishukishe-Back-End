@@ -64,5 +64,10 @@ COPY . /var/www/
 RUN composer dump-autoload --optimize
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
+# Configure entrypoint to run MQTT worker in background
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
+
 EXPOSE 80
 CMD ["apache2-foreground"]
