@@ -10,6 +10,7 @@ class Vehicle extends Model
         'owner_id',
         'sacco_id',
         'registration_number',
+        'hardware_device_id',
         'driver_id',
         'route_id',
         'share_location_with_sacco',

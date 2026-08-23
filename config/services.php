@@ -116,5 +116,13 @@ return [
         'internal_token' => env('NISHUKISHE_INTERNAL_TOKEN'),
     ],
 
+    'mqtt' => [
+        'host' => env('MQTT_HOST', '46.225.62.35'),
+        'port' => (int) env('MQTT_PORT', 1883),
+        'username' => env('MQTT_USERNAME', null),
+        'password' => env('MQTT_PASSWORD', null),
+        'topic_prefix' => env('MQTT_TOPIC_PREFIX', 'staging/matatu/'),
+    ],
+
 ];
 
